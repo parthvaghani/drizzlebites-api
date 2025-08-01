@@ -21,15 +21,23 @@ const generateToken = (user, expires, type, secret = config.jwt.secret) => {
     phone: user.phoneNumber || '',
     email: user.email || '',
     role: user.role,
-    businessType: user.user_details.businessType,
+    businessType: user.user_details?.businessType || null,
+    user_details: {                     // ✅ Properly added user details
+      name: user.user_details?.name || '',
+      country: user.user_details?.country || '',
+      gender: user.user_details?.gender || '',
+    },
     iat: moment().unix(),
     exp: expires.unix(),
     type,
   };
+
+  // Additional admin-only fields
   if (user.role === 'admin') {
     payload.userType = user.userType || null;
     payload.permissions = user.permissions || [];
   }
+
   return jwt.sign(payload, secret);
 };
 

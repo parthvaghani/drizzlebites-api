@@ -8,10 +8,7 @@ const config = require('../config/config');
 
 const userSchema = mongoose.Schema(
   {
-    businessName: {
-      type: String,
-      trim: true,
-    },
+   
     email: {
       type: String,
       trim: true,

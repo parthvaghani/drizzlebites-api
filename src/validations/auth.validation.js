@@ -32,7 +32,6 @@ const phoneValidation = (value, helpers) => {
 
 const register = {
   body: Joi.object().keys({
-    businessName: Joi.string().trim().required(),
     email: Joi.string().trim().email().required(),
     phoneNumber: Joi.string().custom(phoneValidation).required().messages({
       'string.empty': 'Phone number is required',
@@ -139,16 +138,6 @@ const verifyEmail = {
   }),
 };
 
-const verify2FA = {
-  body: Joi.object().keys({
-    code: Joi.string().required().messages({
-      'any.required': '2FA code is required',
-      'string.empty': '2FA code is required',
-    }),
-    token: Joi.forbidden(),
-  }),
-};
-
 const verifyLogin2FA = {
   body: Joi.object().keys({
     code: Joi.string().required().messages({
@@ -175,6 +164,5 @@ module.exports = {
   verifyOtp,
   changePassword,
   checkUserValidation,
-  verify2FA,
   verifyLogin2FA,
 };

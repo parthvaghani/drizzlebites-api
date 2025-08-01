@@ -57,7 +57,7 @@ module.exports = {
   baseUrl: envVars.BASE_URL,
   port: envVars.PORT,
   mongoose: {
-    url: `${envVars.MONGODB_URL}finflex-development`,
+    url: `${envVars.MONGODB_URL}aavkar-development`,
     options: {},
   },
   jwt: {

@@ -24,7 +24,7 @@ const loginUserWithEmailAndPassword = async (emailOrUsername, password) => {
 
   try {
     let user;
-
+    
     // Check if input is an email
     const isEmail = validator.isEmail(emailOrUsername);
 

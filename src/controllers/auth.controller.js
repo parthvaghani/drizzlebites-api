@@ -15,7 +15,7 @@ const register = catchAsync(async (req, res) => {
     try {
       const slackPayload = {
         channel: config.slack_channel,
-        username: 'Finflex-Backend',
+        username: 'Aavkar Backend',
         text: `New user registered => ${JSON.stringify(user)}`,
         icon_emoji: 'ghost',
       };
@@ -107,44 +107,27 @@ const verifyOTP = catchAsync(async (req, res) => {
 });
 
 const login = catchAsync(async (req, res) => {
-  try {
-    const { emailOrUsername, password } = req.body;
-    if (!emailOrUsername || !password) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Please provide both email/username and password');
-    }
+  const { emailOrUsername, password } = req.body;
 
-    const result = await authService.loginUserWithEmailAndPassword(emailOrUsername, password);
-    let user = result.user;
-    // Ensure userType and permissions are always present for admin
-    if (user.role === 'admin') {
-      user = {
-        ...user._doc ? user._doc : user,
-        userType: user.userType || null,
-        permissions: user.permissions || [],
-      };
-    }
-    if (user?.twoFAEnabled) {
-      return res.status(httpStatus.OK).send({
-        success: true,
-        twoFARequired: true,
-        emailOrUsername: result.user.emailOrUsername,
-        password: password,
-        email: result.user.email,
-        message: '2FA verification required to complete login'
-      });
-    }
-    else {
-      return res.send({ success: true, user, tokens: result.tokens });
-    }
-  } catch (error) {
-    if (error instanceof AggregateError) {
-      const errorMessages = error.errors.map((err) => err.message).join(', ');
-      throw new ApiError(httpStatus.BAD_REQUEST, errorMessages);
-    }
-    throw error;
+  if (!emailOrUsername || !password) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Please provide both email/username and password');
   }
-});
 
+  const result = await authService.loginUserWithEmailAndPassword(emailOrUsername, password);
+
+  if (!result.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Login failed. Please try again.');
+  }
+
+
+  const tokens = await tokenService.generateAuthTokens(result.user);
+  return res.status(httpStatus.OK).send({
+    success: true,
+    user:result.user,
+    tokens,
+    message: 'Login successful',
+  });
+});
 const logout = catchAsync(async (req, res) => {
   await authService.logout(req.body.refreshToken);
   res.status(httpStatus.NO_CONTENT).send();
@@ -166,9 +149,9 @@ const senEmailForRecover = catchAsync(async (req, res) => {
     if (!user) {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
-    if (!user.twoFAEnabled) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'This Email have not enabled 2FA');
-    }
+    // if (!user.twoFAEnabled) {
+    //   throw new ApiError(httpStatus.NOT_FOUND, 'This Email have not enabled 2FA');
+    // }
     await emailService.sendSetupPasskeyEmail(user);
     return res.status(httpStatus.NO_CONTENT).send();
   }

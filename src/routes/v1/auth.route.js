@@ -199,16 +199,11 @@ module.exports = router;
  *           schema:
  *             type: object
  *             required:
- *               - businessName
  *               - email
  *               - phoneNumber
  *               - password
  *               - user_details
  *             properties:
- *               businessName:
- *                 type: string
- *                 description: Business name
- *                 example: "My Business Name"
  *               email:
  *                 type: string
  *                 format: email
@@ -270,6 +265,7 @@ module.exports = router;
  *                   type: string
  *                   example: "Email already taken or Invalid phone number format"
  */
+
 
 /**
  * @swagger
@@ -694,6 +690,8 @@ module.exports = router;
  *     tags: [Auth]
  *     requestBody:
  *       required: true
+ *       security:
+ *       - bearerAuth: []
  *       content:
  *         application/json:
  *           schema:
