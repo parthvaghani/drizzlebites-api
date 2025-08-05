@@ -4,7 +4,6 @@ const { app } = require('./app');
 const config = require('./config/config');
 const logger = require('./config/logger');
 const serverless = require('serverless-http');
-const { lambdaHandler } = require('./services/validationTransaction.cron');
 
 if (!config.isServerless) {
   // Express server mode
@@ -42,7 +41,7 @@ if (!config.isServerless) {
     }
   });
 
-  module.exports = { handler: serverless(app), payinCron: lambdaHandler };
+  module.exports = { handler: serverless(app),  };
 } else {
   // Serverless mode
   let isConnected = false;

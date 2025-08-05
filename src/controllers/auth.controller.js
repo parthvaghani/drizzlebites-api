@@ -67,45 +67,6 @@ const checkUserController = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(result);
 });
 
-const requestOTP = catchAsync(async (req, res) => {
-  try {
-    const { phoneNumber, development = false } = req.body;
-    const boolDev = development === true || development === 'true' ? true : false;
-    const otp = await authService.generateOTP(phoneNumber, boolDev);
-    const result = await userService.sendOTP(phoneNumber, otp);
-    const response = {
-      success: true,
-      expireAt: result.expireAt,
-      message: 'OTP sent successfully',
-    };
-
-    if (boolDev) {
-      response.otp = result.otp;
-    }
-    res.status(httpStatus.CREATED).send(response);
-  } catch (error) {
-    if (error instanceof AggregateError) {
-      const errorMessages = error.errors.map((err) => err.message).join(', ');
-      throw new ApiError(httpStatus.BAD_REQUEST, errorMessages);
-    }
-    throw error;
-  }
-});
-
-const verifyOTP = catchAsync(async (req, res) => {
-  try {
-    const { phoneNumber, otp, userDeviceToken } = req.body;
-    const data = await authService.verifyOTPByPhone(phoneNumber, otp, userDeviceToken);
-    res.status(httpStatus.CREATED).send({ success: true, data, message: 'OTP verified!' });
-  } catch (error) {
-    if (error instanceof AggregateError) {
-      const errorMessages = error.errors.map((err) => err.message).join(', ');
-      throw new ApiError(httpStatus.BAD_REQUEST, errorMessages);
-    }
-    throw error;
-  }
-});
-
 const login = catchAsync(async (req, res) => {
   const { emailOrUsername, password } = req.body;
 
@@ -138,25 +99,6 @@ const refreshTokens = catchAsync(async (req, res) => {
   res.send({ ...tokens });
 });
 
-const senEmailForRecover = catchAsync(async (req, res) => {
-  if (req.body.type === 'forgot-password') {
-    const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
-    await emailService.sendResetPasswordEmail(req.body.email, resetPasswordToken);
-    return res.status(httpStatus.NO_CONTENT).send();
-  }
-  else {
-    const user = await userService.getUserByEmail(req.body.email);
-    if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-    }
-    // if (!user.twoFAEnabled) {
-    //   throw new ApiError(httpStatus.NOT_FOUND, 'This Email have not enabled 2FA');
-    // }
-    await emailService.sendSetupPasskeyEmail(user);
-    return res.status(httpStatus.NO_CONTENT).send();
-  }
-});
-
 const resetPassword = catchAsync(async (req, res) => {
   await authService.resetPassword(req.query.token, req.body.password);
   res.status(httpStatus.NO_CONTENT).send();
@@ -184,12 +126,9 @@ module.exports = {
   login,
   logout,
   refreshTokens,
-  senEmailForRecover,
   resetPassword,
   sendVerificationEmail,
   verifyEmail,
-  requestOTP,
-  verifyOTP,
   registerUser,
   changePassword,
   checkUserController

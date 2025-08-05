@@ -2,28 +2,11 @@ const express = require('express');
 const validate = require('../../middlewares/validate');
 const authValidation = require('../../validations/auth.validation');
 const authController = require('../../controllers/auth.controller');
-const auth = require('../../middlewares/auth');
-const twofaController = require('../../controllers/twofa.controller');
 
 const router = express.Router();
-//FIXME - Add validation
-router.post('/request-otp', validate(authValidation.requestOtp), authController.requestOTP);
-router.post('/verify-otp', validate(authValidation.verifyOtp), authController.verifyOTP);
-router.post('/register', validate(authValidation.register), authController.register);
-router.post('/logout', validate(authValidation.logout), authController.logout);
-router.post('/refresh-tokens', validate(authValidation.refreshTokens), authController.refreshTokens);
-router.post('/recover', validate(authValidation.senEmailForRecover), authController.senEmailForRecover);
-router.post('/reset-password', validate(authValidation.resetPassword), authController.resetPassword);
-router.post('/send-verification-email', authController.sendVerificationEmail);
-router.post('/verify-email', validate(authValidation.verifyEmail), authController.verifyEmail);
-router.post('/user/register', authController.registerUser); //FIXME - Add validation b
+
+router.post('/user/register', authController.registerUser);
 router.post('/login', validate(authValidation.login), authController.login);
-router.post('/2fa/verify-login', validate(authValidation.verifyLogin2FA), twofaController.verifyLogin2FA);
-router.post('/change-password', auth(), validate(authValidation.changePassword), authController.changePassword);
-router.post('/validate-user', validate(authValidation.checkUserValidation), authController.checkUserController);
-//2FA
-router.post('/2fa/setup', auth(), twofaController.setup2FA);
-router.post('/2fa/verify', auth(), validate(authValidation.verify2FA), twofaController.verify2FA);
 
 module.exports = router;
 

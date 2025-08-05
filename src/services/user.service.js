@@ -2,12 +2,9 @@ const httpStatus = require('http-status');
 const { User, OTP, Token, Invitation, Topup, Transaction } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { getFileExtensionFromBase64, uploadS3 } = require('../Helpers/aws-s3');
-const config = require('../config/config');
 const fs = require('fs');
-const { CHARGE_TYPE, COMMISSION_TYPE } = require('../utils/constants');
 const bcrypt = require('bcryptjs/dist/bcrypt');
 const { adminUserTypePermissions } = require('../config/roles');
-const { checkKycVerification } = require('../utils/kycVerification');
 
 /**
  * Create a user
@@ -328,218 +325,8 @@ const get_user = async (get_user) => {
   }
 };
 
-/**
- * Search for cities.
- * @param {string} searchTerms - The search term for cities.
- * @returns {Promise<Array>}
- */
-
-const searchCities = async (searchTerms) => {
-  let filteredCities;
-  const data = await fs.promises.readFile('./src/Helpers/cities.json', 'utf-8');
-  const citiesData = JSON.parse(data);
-  if (searchTerms === 'all') {
-    filteredCities = citiesData;
-  } else {
-    filteredCities = citiesData
-      .filter((city) => city.label.toLowerCase().includes(searchTerms.toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }
-  if (filteredCities.length === 0) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'No data found');
-  }
-
-  return filteredCities;
-};
-
-/**
- * Search for states.
- * @param {string} searchTerms - The search term for states.
- * @returns {Promise<Array>}
- */
-const searchStates = async (searchTerms) => {
-  let filteredStates;
-  const data = await fs.promises.readFile('./src/Helpers/states.json', 'utf-8');
-  const stateData = JSON.parse(data);
-  if (searchTerms === 'all') {
-    filteredStates = stateData;
-  } else {
-    filteredStates = stateData
-      .filter((state) => state.label.toLowerCase().includes(searchTerms.toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }
-  if (filteredStates.length === 0) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'No data found');
-  }
-  return filteredStates;
-};
-
-const updateActiveStatus = async (id, isActive) => {
-  await User.updateOne({ _id: id }, { isActive: isActive });
-};
-
 const updateUserData = async (id, data) => {
   await User.updateOne({ _id: id }, { $set: data });
-};
-
-/**
- * Get all users' commission configurations
- * @param {Object} options - Query options
- * @param {string} [options.sortBy] - Sort option in the format: sortField:(desc|asc)
- * @param {number} [options.limit] - Maximum number of results per page (default = 10)
- * @param {number} [options.page] - Current page (default = 1)
- * @returns {Promise<QueryResult>}
- */
-const getAllCommissionConfigs = async (options) => {
-  options.populate = 'assignedPayoutBank';
-  const users = await User.paginate({}, options);
-
-  // Transform data to focus on commission configs
-  const result = {
-    ...users,
-    results: users.results.map((user) => ({
-      userId: user._id,
-      businessName: user.businessName,
-      email: user.email,
-      commissionConfig: user.commissionConfig || {},
-    })),
-  };
-
-  return result;
-};
-
-/**
- * Calculate commission for a user based on amount
- * @param {ObjectId} userId - User ID
- * @param {number} amount - Transaction amount
- * @returns {Promise<Object>} - Calculated amount details
- */
-const calculateCommission = async (userId, amount) => {
-  if (!amount || amount <= 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid amount');
-  }
-
-  const user = await getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  const { commissionConfig } = user;
-  let commissionAmount = 0;
-  let commissionType = COMMISSION_TYPE.PAYOUT;
-
-  if (!commissionConfig.payout) {
-    // Default commission calculation (5%)
-    commissionAmount = amount * 0.05;
-  } else if (
-    amount >= commissionConfig.payout.startRange &&
-    (commissionConfig.payout.endRange === 0 || amount <= commissionConfig.payout.endRange)
-  ) {
-    commissionType = commissionConfig.payout.commissionType;
-
-    if (commissionConfig.payout.chargeType === CHARGE_TYPE.PERCENTAGE) {
-      commissionAmount = amount * (commissionConfig.payout.value / 100);
-    } else if (commissionConfig.payout.chargeType === CHARGE_TYPE.FIXED) {
-      commissionAmount = commissionConfig.payout.value;
-    }
-  } else {
-    // Fallback to default commission
-    commissionAmount = amount * 0.05;
-  }
-
-  // Calculate final amount based on commission type
-  let finalAmount = amount;
-  if (commissionType === COMMISSION_TYPE.PAYIN) {
-    finalAmount = amount - commissionAmount;
-  } else {
-    finalAmount = amount + commissionAmount;
-  }
-
-  return {
-    originalAmount: amount,
-    commissionAmount,
-    finalAmount,
-    chargeType: commissionConfig.payout.chargeType,
-  };
-};
-
-/**
- * Deduct amount from user's available balance
- * @param {ObjectId} userId - User ID
- * @param {number} amount - Amount to deduct
- * @returns {Promise<User>} - Updated user object
- * @throws {ApiError} - If user not found or has insufficient balance
- */
-const deductUserBalance = async (userId, amount) => {
-  const user = await getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  if (user.availableBalance < amount) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Insufficient balance');
-  }
-
-  user.availableBalance -= amount;
-  await user.save();
-  return user;
-};
-
-/**
- * Add amount to a specified user's balance field
- * @param {ObjectId} userId - User ID
- * @param {number} amount - Amount to add
- * @param {string} balanceField - The balance field to update (e.g., 'availableBalance' or 'pgBalance')
- * @returns {Promise<User>} - Updated user object
- * @throws {ApiError} - If user not found or balance field is invalid
- */
-const addUserBalance = async (userId, amount, balanceField) => {
-  const user = await getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  if (!(balanceField in user)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, `Invalid balance field: ${balanceField}`);
-  }
-
-  if (typeof user[balanceField] !== 'number') {
-    throw new ApiError(httpStatus.BAD_REQUEST, `Balance field '${balanceField}' is not a number`);
-  }
-
-  user[balanceField] += amount;
-  await user.save();
-  return user;
-};
-
-/**
- * Transfer amount from pgBalance to availableBalance for a user
- * @param {ObjectId} userId - User ID
- * @param {number} amount - Amount to transfer
- * @returns {Promise<User>} - Updated user object
- * @throws {ApiError} - If user not found or insufficient pgBalance
- */
-const transferPgBalanceToAvailable = async (userId, amount) => {
-  const user = await getUserById(userId);
-  await checkKycVerification(
-    user,
-    'KYC verification required. Please complete your verification before initiating transactions.',
-  );
-  if (typeof amount !== 'number' || amount <= 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Amount must be a positive number');
-  }
-  if (user.pgBalance < amount) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Insufficient PG balance');
-  }
-  user.pgBalance -= amount;
-  user.availableBalance += amount;
-  await user.save();
-  return user;
-};
-
-const getTopupByUserId = async (userId) => {
-  const topup = await Topup.find({ userId, status: 'approved' });
-  return topup;
 };
 
 const getAllAdminData = async () => {
@@ -552,46 +339,6 @@ const getAllAdminData = async () => {
     userData
   };
 };
-
-const getWithdrawByUserId = async (userId) => {
-  const withdraw = await Transaction.find({ userId, status: 'SUCCESS', transactionType: { $in: ['PAYOUT', 'BULK_PAYOUT'] } });
-  return withdraw;
-};
-
-function calculateGrowth(data) {
-  const now = new Date();
-  const sixMonthsAgo = new Date(now);
-  sixMonthsAgo.setMonth(now.getMonth() - 6);
-  const threeMonthsAgo = new Date(now);
-  threeMonthsAgo.setMonth(now.getMonth() - 3);
-
-  let first3MonthAmount = 0;
-  let second3MonthAmount = 0;
-  let totalAmount = 0;
-
-  data.forEach((item) => {
-    if (item.status !== 'approved' && item.status !== 'SUCCESS') return;
-    const createdAt = new Date(item.createdAt);
-    const amount = typeof item.amount === 'number' ? item.amount : 0;
-
-    if (createdAt >= sixMonthsAgo && createdAt < threeMonthsAgo) {
-      first3MonthAmount += amount;
-    } else if (createdAt >= threeMonthsAgo && createdAt <= now) {
-      second3MonthAmount += amount;
-    }
-    totalAmount += amount;
-  });
-
-  const growth =
-    first3MonthAmount === 0 ? second3MonthAmount > 0 ? 100 : 0 : ((second3MonthAmount - first3MonthAmount) / first3MonthAmount) * 100;
-
-  return {
-    first3MonthAmount,
-    second3MonthAmount,
-    growth: parseFloat(growth.toFixed(2)),
-    totalAmount,
-  };
-}
 
 module.exports = {
   createUser,
@@ -608,18 +355,7 @@ module.exports = {
   uploadProfileImageS3,
   searchAndGetUser,
   get_user,
-  searchCities,
-  searchStates,
   clearToken,
-  updateActiveStatus,
   updateUserData,
-  getAllCommissionConfigs,
-  calculateCommission,
-  deductUserBalance,
-  addUserBalance,
-  getTopupByUserId,
-  calculateGrowth,
-  getWithdrawByUserId,
   getAllAdminData,
-  transferPgBalanceToAvailable
 };

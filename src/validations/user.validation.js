@@ -1,6 +1,5 @@
 const Joi = require('joi');
 const { objectId, password } = require('./custom.validation');
-const { COMMISSION_TYPE, CHARGE_TYPE } = require('../utils/constants');
 
 const createUser = {
   body: Joi.object().keys({
@@ -26,10 +25,8 @@ const createUser = {
     availableBalance: Joi.number().default(0),
     isActive: Joi.boolean().default(true),
     commissionConfig: Joi.object({
-      commissionType: Joi.string().valid(COMMISSION_TYPE.PAYIN, COMMISSION_TYPE.PAYOUT),
       startRange: Joi.number().min(0),
       endRange: Joi.number().min(0),
-      chargeType: Joi.string().valid(CHARGE_TYPE.PERCENTAGE, CHARGE_TYPE.FIXED),
       value: Joi.number().min(0),
     }),
   }),

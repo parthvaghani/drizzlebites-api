@@ -4,7 +4,6 @@ const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const { userService, authService, transactionService } = require('../services');
 const { excelService } = require('../services');
-const { TransactionLogType, TRANSACTION_TYPE } = require('../utils/constants');
 const ExcelJS = require('exceljs');
 const { allAdminUserTypes, allAdminPermissions, adminUserTypePermissions } = require('../config/roles');
 
@@ -81,7 +80,7 @@ const getUsers = catchAsync(async (req, res) => {
 });
 
 const getUser = catchAsync(async (req, res) => {
-  const { userId } = req.params;  
+  const { userId } = req.params;
   const user = await userService.getUserById(userId);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
@@ -123,25 +122,6 @@ const updateUser = catchAsync(async (req, res) => {
   const updatedUser = await userService.updateUserProfileById(userId, updateData);
   const { ...userWithoutPassword } = updatedUser._doc;
 
-  // --- Add transaction if availableBalance is present in payload ---
-  if (typeof req.body.availableBalance === 'number') {
-    const amount = req.body.availableBalance;
-    const transactionLogType = amount >= 0 ? TransactionLogType.ADD_BALANCE : TransactionLogType.ADD_SUBTRACT_BALANCE;
-    const transactionData = {
-      userId: userId,
-      amount: amount,
-      payment_mode: 'IMPS',
-      status: 'SUCCESS',
-      transactionType: TRANSACTION_TYPE.PAY_IN,
-      type: `${TransactionLogType.TRANSFER_MONEY} (IMPS)`,
-      transactionLogType,
-      currency: 'INR',
-      transactionDate: new Date(),
-      remark: amount >= 0 ? 'Balance Added by Admin' : 'Balance Subtracted by Admin',
-    };
-    await transactionService.createTransaction(transactionData);
-  }
-
   res.send({
     success: true,
     user: userWithoutPassword,
@@ -175,18 +155,6 @@ const searchAndGetUser = catchAsync(async (req, res) => {
 const get_user = catchAsync(async (req, res) => {
   const { ids } = req.body;
   const result = await userService.get_user(ids);
-  res.send({ success: true, result: result });
-});
-
-const searchCities = catchAsync(async (req, res) => {
-  const { searchTerms } = req.params;
-  const result = await userService.searchCities(searchTerms);
-  res.send({ success: true, result: result });
-});
-
-const searchStates = catchAsync(async (req, res) => {
-  const { searchTerms } = req.params;
-  const result = await userService.searchStates(searchTerms);
   res.send({ success: true, result: result });
 });
 
@@ -244,230 +212,6 @@ const getMe = catchAsync(async (req, res) => {
   });
 });
 
-const setUserActiveStatus = catchAsync(async (req, res) => {
-  const {
-    params: { id },
-  } = req;
-
-  const getUser = await userService.get_user(id);
-
-  if (!getUser.length) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Provided User not found');
-  }
-
-  await userService.updateActiveStatus(id, !getUser[0].isActive);
-
-  res.send({ success: true });
-});
-
-const getUserCommissionConfig = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-  const user = await userService.getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  res.send({
-    success: true,
-    commissionConfig: user.commissionConfig || {},
-  });
-});
-
-const updateUserCommissionConfig = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-  const { commissionConfig } = req.body;
-
-  const user = await userService.getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  const updatedUser = await userService.updateUserProfileById(userId, { commissionConfig });
-
-  res.send({
-    success: true,
-    message: 'Commission configuration updated successfully',
-    commissionConfig: updatedUser.commissionConfig,
-  });
-});
-
-const deleteUserCommissionConfig = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-
-  const user = await userService.getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  const defaultCommissionConfig = {
-    payin: {
-      startRange: 0,
-      endRange: 0,
-      chargeType: 'percentage',
-      value: 5,
-    },
-    payout: {
-      startRange: 0,
-      endRange: 0,
-      chargeType: 'percentage',
-      value: 5,
-    },
-  };
-
-  await userService.updateUserProfileById(userId, { commissionConfig: defaultCommissionConfig });
-
-  res.send({
-    success: true,
-    message: 'Commission configuration reset to defaults',
-    commissionConfig: defaultCommissionConfig,
-  });
-});
-
-// Get all users' commission configurations
-const getAllCommissionConfigs = catchAsync(async (req, res) => {
-  const options = pick(req.query, ['sortBy', 'limit', 'page']);
-  const result = await userService.getAllCommissionConfigs(options);
-  res.send(result);
-});
-
-const calculateCommission = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-  const { amount } = req.body;
-
-  const result = await userService.calculateCommission(userId, parseFloat(amount));
-
-  res.send({
-    success: true,
-    result,
-  });
-});
-
-// Generate Finflex keys for a user
-const generateFinflexKeys = catchAsync(async (req, res) => {
-  const userId = req.user._id;
-  if (!userId) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not authenticated');
-  }
-
-  const { isRegenerate = false, isLive = false } = req.body;
-
-  const user = await userService.getUserById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  let message = '';
-  const finflexKeys = user.finflexKeys || { test: {}, live: {} };
-
-  const hasExistingTestKeys = finflexKeys.test?.clientId;
-  const hasExistingLiveKeys = finflexKeys.live?.clientId;
-
-  // Generate a 10-digit client ID with prefix
-  const generateClientId = (type) => {
-    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0'); // 4 random digits
-    const prefix = type === 'live' ? 'finflex_live_' : 'finflex_test_';
-    return `${prefix}${timestamp}${random}`;
-  };
-
-  if (!isRegenerate && !isLive && hasExistingTestKeys) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      'Test keys already exist. Please use regenerate mode to update existing keys.'
-    );
-  }
-
-  if (isRegenerate) {
-    if (isLive) {
-      if (!hasExistingLiveKeys) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No existing live keys found. Please generate live keys after KYC verification.');
-      }
-
-      const newLiveKeys = authService.generateFinFlexKeys('live');
-      finflexKeys.live = {
-        ...newLiveKeys,
-        clientId: finflexKeys.live.clientId // Keep existing client ID
-      };
-      message = 'Live keys updated successfully';
-    } else {
-      if (!hasExistingTestKeys) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No existing test keys found. Please generate test keys first.');
-      }
-
-      const newTestKeys = authService.generateFinFlexKeys('test');
-      finflexKeys.test = {
-        ...newTestKeys,
-        clientId: finflexKeys.test.clientId // Keep existing client ID
-      };
-      message = 'Test keys updated successfully';
-    }
-  } else {
-    if (isLive) {
-      if (user.kycVerificationStatus !== 'APPROVED') {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot generate live keys. Complete KYC verification first.');
-      }
-
-      if (!hasExistingLiveKeys) {
-        const liveKeys = authService.generateFinFlexKeys('live');
-        finflexKeys.live = {
-          ...liveKeys,
-          clientId: generateClientId('live')
-        };
-        message = 'Live keys generated successfully';
-      } else {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Live keys already exist. Please use regenerate mode to update them.');
-      }
-    } else {
-      if (!hasExistingTestKeys) {
-        const testKeys = authService.generateFinFlexKeys('test');
-        finflexKeys.test = {
-          ...testKeys,
-          clientId: generateClientId('test')
-        };
-        message = 'Test keys generated successfully';
-      }
-    }
-  }
-
-  const updatedUser = await userService.updateUserProfileById(userId, { finflexKeys });
-
-  return res.send({
-    success: true,
-    message,
-    keys: {
-      test: updatedUser.finflexKeys.test,
-      live: updatedUser.finflexKeys.live
-    },
-    isKycVerified: user.kycVerificationStatus === 'APPROVED'
-  });
-});
-
-const transferPgBalance = catchAsync(async (req, res) => {
-  const { userId } = req.params;
-  const { amount } = req.body;
-  const user = await userService.transferPgBalanceToAvailable(userId, amount);
-
-  await transactionService.createTransaction({
-    userId,
-    amount,
-    payment_mode: 'IMPS',
-    status: 'SUCCESS',
-    transactionType: TRANSACTION_TYPE.PAY_IN,
-    type: TransactionLogType.TRANSFER_MONEY,
-    transactionLogType: TransactionLogType.TRANSFER_MONEY,
-    currency: 'INR',
-    transactionDate: new Date(),
-    remark: '(TRANSFER-PG-BALANCE) PG balance moved to available balance',
-  });
-
-  res.send({
-    success: true,
-    message: 'PG balance transferred successfully',
-    pgBalance: user.pgBalance,
-    availableBalance: user.availableBalance,
-  });
-});
-
 // Admin meta endpoint: returns all user types, all permissions, and default permissions mapping
 const getAdminMeta = (req, res) => {
   res.send({
@@ -486,17 +230,7 @@ module.exports = {
   uploadProfileImage,
   searchAndGetUser,
   get_user,
-  searchCities,
-  searchStates,
   clearToken,
   getMe,
-  setUserActiveStatus,
-  getUserCommissionConfig,
-  updateUserCommissionConfig,
-  deleteUserCommissionConfig,
-  getAllCommissionConfigs,
-  calculateCommission,
-  generateFinflexKeys,
   getAdminMeta,
-  transferPgBalance,
 };

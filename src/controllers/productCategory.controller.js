@@ -2,6 +2,7 @@ const service = require('../services/productCategory.service');
 
 const create = async (req, res) => {
   try {
+    if (req.user.role !== 'admin') return res.status(400).json({ message: 'You do not have permission to access this resource.' });
     if (!req.body.name) return res.status(400).json({ message: 'Category name is required' });
     if (!req.body.description) return res.status(400).json({ message: 'Category description is required' });
     const cat = await service.createCategory(req.body);
@@ -33,6 +34,7 @@ const getById = async (req, res) => {
 
 const update = async (req, res) => {
   try {
+    if (req.user.role !== 'admin') return res.status(400).json({ message: 'You do not have permission to access this resource.' });
     if (!req.params.id) return res.status(400).json({ message: 'Category ID is required' });
     const updated = await service.updateCategory(req.params.id, req.body);
     res.status(200).json({ message: 'Category updated successfully', data: updated });
@@ -43,6 +45,7 @@ const update = async (req, res) => {
 
 const remove = async (req, res) => {
   try {
+    if (req.user.role !== 'admin') return res.status(400).json({ message: 'You do not have permission to access this resource.' });
     if (!req.params.id) return res.status(400).json({ message: 'Category ID is required' });
     await service.deleteCategory(req.params.id);
     res.status(200).json({ message: 'Category deleted successfully' });

@@ -10,7 +10,6 @@ router.delete('/product-category/:id', auth(), controller.remove);
 
 module.exports = router;
 
-
 /**
  * @swagger
  * tags:

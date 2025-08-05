@@ -14,17 +14,10 @@ router
   .post(auth('manageUsers'), validate(userValidation.createUser), userController.createUser)
   .get(auth('getUsers'), validate(userValidation.getUsers), userController.getUsers);
 
-// Get all commission configurations route
-router
-  .route('/commission-configs')
-  .get(auth('manageUsers'), validate(userValidation.getAllCommissionConfigs), userController.getAllCommissionConfigs);
-
 // Specific routes (no parameters)
 router.route('/me').get(auth(), userController.getMe);
 
 // Search routes
-router.route('/search-cities/:searchTerms').get(validate(userValidation.searchCities), userController.searchCities);
-router.route('/search-state/:searchTerms').get(validate(userValidation.searchStates), userController.searchStates);
 router.route('/search/:userId/:searchTerm').get(validate(userValidation.searchUser), userController.searchAndGetUser);
 
 // User ID based routes
@@ -51,32 +44,6 @@ router
   );
 
 router.route('/:userId/get-user').post(auth('manageUsers'), validate(userValidation.getUser), userController.get_user);
-router
-  .route('/update-user-status/:id')
-  .patch(auth('manageUsers'), validate(userValidation.updateUserStatus), userController.setUserActiveStatus);
-
-// Commission configuration routes - admin only
-router
-  .route('/:userId/commission-config')
-  .get(auth('manageUsers'), validate(userValidation.getUserCommissionConfig), userController.getUserCommissionConfig)
-  .put(auth('manageUsers'), validate(userValidation.updateUserCommissionConfig), userController.updateUserCommissionConfig)
-  .delete(
-    auth('manageUsers'),
-    validate(userValidation.deleteUserCommissionConfig),
-    userController.deleteUserCommissionConfig,
-  );
-
-// Admin-only: Transfer PG balance to available balance
-router.post(
-  '/:userId/transfer-pg-balance',
-  auth('manageUsers'),
-  validate(userValidation.transferPgBalance),
-  userController.transferPgBalance
-);
-
-router
-  .route('/:userId/calculate-commission')
-  .post(auth('calculateCommission'), validate(userValidation.calculateCommission), userController.calculateCommission);
 
 // Admin meta endpoint
 router.route('/admin/meta').get(auth('manageUsers'), getAdminMeta);

@@ -3,12 +3,10 @@ const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const { toJSON, paginate } = require('./plugins');
 const { roles } = require('../config/roles');
-const { VERIFICATION_STATUS } = require('../utils/constants');
 const config = require('../config/config');
 
 const userSchema = mongoose.Schema(
   {
-   
     email: {
       type: String,
       trim: true,
@@ -103,11 +101,6 @@ const userSchema = mongoose.Schema(
     permissions: {
       type: [String],
       default: [],
-    },
-    kycVerificationStatus: {
-      type: String,
-      enum: Object.values(VERIFICATION_STATUS),
-      default: VERIFICATION_STATUS.PENDING,
     },
     availableBalance: {
       type: Number,
