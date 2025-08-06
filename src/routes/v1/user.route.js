@@ -1,56 +1,10 @@
 const express = require('express');
 const auth = require('../../middlewares/auth');
-const validate = require('../../middlewares/validate');
-const userValidation = require('../../validations/user.validation');
 const userController = require('../../controllers/user.controller');
-const { upload } = require('../../Helpers/multer');
-const { getAdminMeta } = require('../../controllers/user.controller');
 
 const router = express.Router();
 
-// Root routes
-router
-  .route('/')
-  .post(auth('manageUsers'), validate(userValidation.createUser), userController.createUser)
-  .get(auth('getUsers'), validate(userValidation.getUsers), userController.getUsers);
-
-// Specific routes (no parameters)
 router.route('/me').get(auth(), userController.getMe);
-
-// Search routes
-router.route('/search/:userId/:searchTerm').get(validate(userValidation.searchUser), userController.searchAndGetUser);
-
-// User ID based routes
-router
-  .route('/:userId')
-  .get(auth('getUser'), validate(userValidation.getUser), userController.getUser)
-  .patch(
-    auth(),
-    upload.single('avatar'),
-    validate(userValidation.updateUser),
-    userController.updateUser
-  )
-  .delete(auth('manageUsers'), validate(userValidation.deleteUser), userController.deleteUser);
-
-router.route('/:userId/clearDeviceToken').patch(validate(userValidation.deleteUser), userController.clearToken);
-
-router
-  .route('/:userId/upload')
-  .post(
-    auth('manageUsers'),
-    upload.single('file'),
-    validate(userValidation.uploadProfileImage),
-    userController.uploadProfileImage,
-  );
-
-router.route('/:userId/get-user').post(auth('manageUsers'), validate(userValidation.getUser), userController.get_user);
-
-// Admin meta endpoint
-router.route('/admin/meta').get(auth('manageUsers'), getAdminMeta);
-
-router
-  .route('/add-admin')
-  .post(auth('manageUsers'), validate(userValidation.createAdmin), userController.createUser);
 
 module.exports = router;
 

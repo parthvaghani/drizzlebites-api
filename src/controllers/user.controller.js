@@ -2,10 +2,9 @@ const httpStatus = require('http-status');
 const pick = require('../utils/pick');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
-const { userService, authService, transactionService } = require('../services');
+const { userService } = require('../services');
 const { excelService } = require('../services');
 const ExcelJS = require('exceljs');
-const { allAdminUserTypes, allAdminPermissions, adminUserTypePermissions } = require('../config/roles');
 
 const createUser = catchAsync(async (req, res) => {
   const user = await userService.createUser(req.body);
@@ -133,30 +132,19 @@ const clearToken = catchAsync(async (req, res) => {
   await userService.clearToken(req.params.userId);
   res.status(httpStatus.NO_CONTENT).send();
 });
+
 const deleteUser = catchAsync(async (req, res) => {
   await userService.deleteUserById(req.params.userId);
   res.send({ message: 'User deleted successfully' });
 });
 
-const uploadProfileImage = catchAsync(async (req, res) => {
-  const file = req.file;
-  const userId = req.params.userId;
-  const imageUrl = await userService.uploadProfileImageS3(userId, file, 'profile-images');
-  await userService.updateUserProfileById(userId, { user_details: { avatar: imageUrl } });
-  res.send({ success: true, imageUrl, message: 'Profile picture updated!' });
-});
-
-const searchAndGetUser = catchAsync(async (req, res) => {
-  const { searchTerm, userId } = req.params;
-  const result = await userService.searchAndGetUser(userId, searchTerm);
-  res.send({ success: true, result });
-});
-
-const get_user = catchAsync(async (req, res) => {
-  const { ids } = req.body;
-  const result = await userService.get_user(ids);
-  res.send({ success: true, result: result });
-});
+// const uploadProfileImage = catchAsync(async (req, res) => {
+//   const file = req.file;
+//   const userId = req.params.userId;
+//   const imageUrl = await userService.uploadProfileImageS3(userId, file, 'profile-images');
+//   await userService.updateUserProfileById(userId, { user_details: { avatar: imageUrl } });
+//   res.send({ success: true, imageUrl, message: 'Profile picture updated!' });
+// });
 
 const getMe = catchAsync(async (req, res) => {
   const user = req.user;
@@ -166,39 +154,12 @@ const getMe = catchAsync(async (req, res) => {
   const userDoc = user.toJSON();
 
   if (user.role === 'admin') {
-    const { topup, withdraw, userData } = await userService.getAllAdminData();
-
-    const totalDepositAmount = topup.reduce((acc, curr) => acc + curr.amount, 0);
-    const totalBalanceOfUsers = userData.reduce((acc, curr) => acc + curr.availableBalance, 0);
-    const totalPgBalance = userData.reduce((acc, curr) => acc + curr.pgBalance, 0);
-
-    // Get today's date at 00:00:00 and tomorrow's 00:00:00
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-
-    // Filter and calculate today's withdrawal amount
-    const todaysWithdrawals = withdraw.filter(item => {
-      const createdAt = new Date(item.createdAt);
-      return createdAt >= startOfDay && createdAt < endOfDay;
-    });
-
-    const todaysWithdrawAmount = todaysWithdrawals.reduce((acc, curr) => acc + curr.amount, 0);
-
+    const { userData } = await userService.getAllAdminData();
     return res.send({
       ...userDoc,
-      totalDepositAmount,
-      totalBalanceOfUsers,
-      totalPgBalance,
-      todaysWithdrawAmount,
+      userData
     });
   }
-
-
-  const topup = await userService.getTopupByUserId(user._id);
-  const topupGrowth = userService.calculateGrowth(topup);
-  const withdraw = await userService.getWithdrawByUserId(user._id);
-  const withdrawGrowth = userService.calculateGrowth(withdraw);
 
   delete userDoc.password;
   delete userDoc.acceptedTerms;
@@ -207,19 +168,8 @@ const getMe = catchAsync(async (req, res) => {
 
   res.send({
     ...userDoc,
-    topupGrowth,
-    withdrawGrowth,
   });
 });
-
-// Admin meta endpoint: returns all user types, all permissions, and default permissions mapping
-const getAdminMeta = (req, res) => {
-  res.send({
-    userTypes: allAdminUserTypes,
-    permissions: allAdminPermissions,
-    defaultPermissions: adminUserTypePermissions,
-  });
-};
 
 module.exports = {
   createUser,
@@ -227,10 +177,6 @@ module.exports = {
   getUser,
   updateUser,
   deleteUser,
-  uploadProfileImage,
-  searchAndGetUser,
-  get_user,
   clearToken,
   getMe,
-  getAdminMeta,
 };

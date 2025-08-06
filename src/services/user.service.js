@@ -1,8 +1,7 @@
 const httpStatus = require('http-status');
-const { User, OTP, Token, Invitation, Topup, Transaction } = require('../models');
+const { User, Token } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { getFileExtensionFromBase64, uploadS3 } = require('../Helpers/aws-s3');
-const fs = require('fs');
 const bcrypt = require('bcryptjs/dist/bcrypt');
 const { adminUserTypePermissions } = require('../config/roles');
 
@@ -173,19 +172,7 @@ const updateUserById = async (userId, updateBody) => {
  * @param {Number} otp
  * @returns {Promise<OTP>}
  */
-const sendOTP = async (phoneNumber, otp) => {
-  //TODO - Integrate 'msg91' service to send OTP in real device
-  if (!phoneNumber || !phoneNumber.startsWith('+91')) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid Phone number!');
-  }
-  const otpDoc = await OTP.findOneAndUpdate(
-    { phoneNumber },
-    //prettier-ignore
-    { phoneNumber, otp, expireAt: new Date(Date.now() + (1 * 60 * 1000)) },
-    { new: true, upsert: true },
-  );
-  return otpDoc;
-};
+
 
 const clearToken = async (userId) => {
   const user = await getUserById(userId);
@@ -210,12 +197,6 @@ const deleteUserById = async (userId) => {
 
     // Remove user from other users' connections
     await User.updateMany({ connections: userId }, { $pull: { connections: userId } });
-
-    // Delete user's OTP records
-    await OTP.deleteMany({ phoneNumber: user.phoneNumber });
-
-    // Delete user's invitations
-    // await Invitation.deleteMany({ $or: [{ from: userId }, { to: userId }] });
 
     // Delete the user - using deleteOne for atomic operation
     const result = await User.deleteOne({ _id: userId });
@@ -282,18 +263,10 @@ const searchAndGetUser = async (userId, searchTerm) => {
     const response = await Promise.all(
       result.map(async (resultUser) => {
         const isConnected = user.connections.some((connId) => connId.equals(resultUser._id));
-        const isRequested = await Invitation.exists({
-          from: userId,
-          to: resultUser._id,
-          status: 'pending',
-        });
         let connectionStatus;
         let invitationId;
         if (isConnected) {
           connectionStatus = 'connected';
-        } else if (isRequested) {
-          connectionStatus = 'request_sent';
-          invitationId = isRequested?._id;
         } else {
           connectionStatus = 'not_connected';
         }
@@ -330,12 +303,8 @@ const updateUserData = async (id, data) => {
 };
 
 const getAllAdminData = async () => {
-  const topup = await Topup.find({ status: 'approved' });
-  const withdraw = await Transaction.find({ status: 'SUCCESS' });
   const userData = await User.find({ role: 'user' });
   return {
-    topup,
-    withdraw,
     userData
   };
 };
@@ -349,7 +318,6 @@ module.exports = {
   deleteUserById,
   getUserByPhone,
   createNewUser,
-  sendOTP,
   updateUserProfileById,
   encodeFileToBase64,
   uploadProfileImageS3,
