@@ -10,7 +10,8 @@ const createOrder = catchAsync(async (req, res) => {
 
 const getMyOrders = catchAsync(async (req, res) => {
   const userId = req.user && req.user._id;
-  const results = await service.getOrdersByUser(userId);
+  const userRole = req.user && req.user.role;
+  const results = await service.getOrdersByUser(userId, userRole);
   return res.status(200).json({ success: true, message: 'Orders fetched successfully', data: results });
 });
 

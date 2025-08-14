@@ -72,8 +72,13 @@ const createOrderFromCart = async ({ userId, addressId }) => {
   return orderDoc;
 };
 
-const getOrdersByUser = async (userId) => {
-  return Order.find({ userId }).populate({ path: 'productsDetails.productId', select: 'name price images' });
+const getOrdersByUser = async (userId, userRole) => {
+  if (userRole === 'admin') {
+    return Order.find().populate({ path: 'productsDetails.productId', select: 'name price images' });
+  }
+  else {
+    return Order.find({ userId }).populate({ path: 'productsDetails.productId', select: 'name price images' });
+  }
 };
 
 const getOrderById = async (id, userId, role) => {
@@ -85,7 +90,7 @@ const cancelOrder = async (id, userId, reason, role) => {
   const filter = role === 'admin' ? { _id: id } : { _id: id, userId };
   return Order.findOneAndUpdate(
     filter,
-    { $set: { status: 'canceled', 'cancelDetails.reason': reason || null, 'cancelDetails.canceledBy': role === 'admin' ? 'admin' : 'user', 'cancelDetails.date': Date.now() } },
+    { $set: { status: 'cancelled', 'cancelDetails.reason': reason || null, 'cancelDetails.canceledBy': role === 'admin' ? 'admin' : 'user', 'cancelDetails.date': Date.now() } },
     { new: true }
   );
 };
