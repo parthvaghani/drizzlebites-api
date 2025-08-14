@@ -10,21 +10,10 @@ const createTestimonial = async (data) => {
 
 const getAllTestimonials = async (query = {}) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy,
-      search = '',
-      visible,
-    } = query;
+    const { sortBy, search = '', visible } = query;
 
     const filter = {};
     if (typeof visible !== 'undefined') filter.visible = visible;
-
-    const options = {
-      page: Number(page) || 1,
-      limit: Number(limit) || 10,
-    };
 
     const sort = (() => {
       if (!sortBy) return { createdAt: -1 };
@@ -45,8 +34,6 @@ const getAllTestimonials = async (query = {}) => {
       return Object.keys(sortObj).length ? sortObj : { createdAt: -1 };
     })();
 
-    const skip = (options.page - 1) * options.limit;
-
     let searchFilter = {};
     if (search && String(search).trim() !== '') {
       const regex = { $regex: String(search), $options: 'i' };
@@ -57,20 +44,8 @@ const getAllTestimonials = async (query = {}) => {
 
     const combined = { ...filter, ...searchFilter };
 
-    const [totalResults, results] = await Promise.all([
-      Testimonial.countDocuments(combined),
-      Testimonial.find(combined).sort(sort).skip(skip).limit(options.limit),
-    ]);
-
-    const totalPages = Math.ceil(totalResults / options.limit);
-    return {
-      results,
-      currentResults: results.length,
-      page: options.page,
-      limit: options.limit,
-      totalPages,
-      totalResults,
-    };
+    const results = await Testimonial.find(combined).sort(sort);
+    return results;
   } catch (error) {
     throw error;
   }

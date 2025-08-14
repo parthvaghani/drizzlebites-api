@@ -49,8 +49,6 @@ const deleteTestimonial = {
 const getTestimonials = {
   query: Joi.object().keys({
     search: Joi.string().allow('').optional(),
-    page: Joi.number().integer().min(1).optional(),
-    limit: Joi.number().integer().min(1).max(100).optional(),
     sortBy: Joi.string().optional(),
     visible: Joi.boolean().optional(),
   }),

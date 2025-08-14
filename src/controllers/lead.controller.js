@@ -7,7 +7,7 @@ const create = async (req, res) => {
     if (!page) return res.status(400).json({ message: 'page is required' });
 
     const reqInfo = {
-      sourceUrl: req.headers['referer'] || req.headers['referrer'] || req.body?.sourceUrl,
+      sourceUrl: req.body?.sourceUrl,
       userAgent: req.headers['user-agent'],
       ipAddress: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip,
     };
