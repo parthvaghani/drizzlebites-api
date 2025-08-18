@@ -1,6 +1,15 @@
 const catchAsync = require('../utils/catchAsync');
 const service = require('../services/order.service');
 
+const getAllOrders = catchAsync(async (req, res) => {
+  const userRole = req.user && req.user.role;
+  if (userRole !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  const data = await service.getAllOrders(req.query);
+  return res.status(200).json({ success: true, message: 'Orders fetched successfully', data });
+});
+
 const createOrder = catchAsync(async (req, res) => {
   const userId = req.user && req.user._id;
   const phoneNumber = req.user && req.user.phoneNumber;
@@ -37,6 +46,7 @@ const cancelOrder = catchAsync(async (req, res) => {
 });
 
 module.exports = {
+  getAllOrders,
   createOrder,
   getMyOrders,
   getOrderById,
