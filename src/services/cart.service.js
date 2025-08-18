@@ -1,5 +1,6 @@
 const cartModel = require('../models/cart.model');
 
+
 const getUserCart = async (userId) => {
   const getData = await cartModel.find({ userId: userId, isOrdered: false }).populate('productId');
   return getData;
@@ -37,9 +38,9 @@ const getCartById = async (cartId, userId) => {
   return data;
 };
 
-const deleteCartById = async (cartId) => {
-  const data = await cartModel.deleteOne({_id: cartId});
-  return data;
+
+const deleteCartById = async (cartId, userId) => {
+  return await cartModel.findOneAndDelete({ _id: cartId, userId });
 };
 
 

@@ -9,6 +9,8 @@ const router = express.Router();
 router.get('/', auth(), cartController.getUserCartItems);
 router.post('/', auth(),validate(validation.addToCart), cartController.addToCart);
 router.patch('/', auth(),validate(validation.updateCart), cartController.updateCart);
+router.delete('/:id', auth(), validate(validation.deleteCart), cartController.remove);
+
 module.exports = router;
 
 /**
@@ -70,4 +72,45 @@ module.exports = router;
  *         $ref: '#/components/responses/BadRequest'
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /cart/{id}:
+ *   delete:
+ *     summary: Remove product from cart
+ *     description: Deletes a specific product from the authenticated user's cart.
+ *     tags: [Cart]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: ID of the product to remove from the cart
+ *         schema:
+ *           type: string
+ *           example: 60d21b4667d0d8992e610c85
+ *     responses:
+ *       "200":
+ *         description: Product removed from cart
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Product removed from cart successfully
+ *                 cart:
+ *                   $ref: '#/components/schemas/Cart'
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "404":
+ *         description: Product not found in cart
  */

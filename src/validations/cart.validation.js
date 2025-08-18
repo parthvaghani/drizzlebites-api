@@ -17,7 +17,18 @@ const updateCart = {
   }),
 };
 
+const deleteCart = {
+  params: Joi.object().keys({
+    id: Joi.string().hex().length(24).required().messages({
+      'string.hex': 'Invalid cart ID',
+      'string.length': 'Cart ID must be 24 characters',
+      'any.required': 'Cart ID is required',
+    }),
+  }),
+};
+
 module.exports = {
   addToCart,
-  updateCart
+  updateCart,
+  deleteCart,
 };

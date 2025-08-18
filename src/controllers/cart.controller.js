@@ -79,12 +79,16 @@ const addToCart = catchAsync(async (req, res) => {
 const updateCart = catchAsync(async (req, res) => {
   const user = req.user;
   const getCartItem = await service.getCartById(req.body.cartId, user?._id);
+
   if (!getCartItem) {
     return res.status(400).json({
-      message: 'Something Went Wrong In Update Product To Cart'
+      success: false,
+      message: 'Cart item not found or does not belong to user'
     });
   }
+
   let updatedProduct;
+
   if (req.body.action === 'weight') {
     const getProduct = await getProductById(getCartItem?.productId);
 
@@ -104,62 +108,108 @@ const updateCart = catchAsync(async (req, res) => {
       });
     }
 
-    // Update the cart item with weight + variant id
+    // Update the cart item with new weight
     const updatedData = await service.updateCart(
       getCartItem?._id,
-      selectedVariant.weight,
-      req.body.weight
+      { weight: selectedVariant.weight }
     );
-    if (updatedData.modifiedCount === 0) {
+
+    if (!updatedData || updatedData.modifiedCount === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Something Went Wrong Update Product To Cart'
+        message: 'Something went wrong while updating product weight in cart'
       });
     }
+
     return res.status(200).json({
       success: true,
       message: 'Product weight updated in cart successfully',
     });
   }
+
   else if (req.body.action === 'increment') {
     updatedProduct = getCartItem?.totalProduct + 1;
-  } else if (req.body.action === 'decrement') {
+  }
+
+  else if (req.body.action === 'decrement') {
     updatedProduct = getCartItem?.totalProduct - 1;
+
     if (updatedProduct < 1) {
-      const deleteProductCart = await service.deleteCartById(getCartItem?._id);
-      if (deleteProductCart.modifiedCount === 0) {
+      const deleteProductCart = await service.deleteCartById(getCartItem?._id, user?._id);
+
+      if (!deleteProductCart || deleteProductCart.deletedCount === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Something Went Wrong In Add Product To Cart'
+          message: 'Something went wrong while removing product from cart'
         });
       }
+
       return res.status(200).json({
         success: true,
-        message: 'Product remove Successfully',
+        message: 'Product removed successfully',
       });
     }
-  } else {
+  }
+
+  else {
     return res.status(400).json({
       success: false,
       message: 'Invalid action for updating cart'
     });
   }
-  const updatedData = await service.updateCart(getCartItem?._id, updatedProduct);
-  if (updatedData.modifiedCount === 0) {
+
+  // Update quantity if not deleted
+  const updatedData = await service.updateCart(getCartItem?._id, { totalProduct: updatedProduct });
+
+  if (!updatedData || updatedData.modifiedCount === 0) {
     return res.status(400).json({
       success: false,
-      message: 'Something Went Wrong In Add Product To Cart'
+      message: 'Something went wrong while updating cart quantity'
     });
   }
+
   const message = `Product quantity ${req.body.action === 'increment' ? 'increased' : 'decreased'} successfully.`;
+
   return res.status(200).json({
     success: true,
-    message: message,
+    message,
   });
 });
+
+ 
+const remove = async (req, res) => {
+  try {
+    const cartId = req.params.id;
+    const userId = req.user._id;
+
+    if (req.user.role !== 'user') {
+      return res.status(403).json({ message:'Only users can delete cart items' });
+    }
+
+    if (!cartId) {
+      return res.status(400).json({ message:'Cart ID is required' });
+    }
+
+    // Check ownership
+    const cartItem = await service.getCartById(cartId, userId);
+    if (!cartItem) {
+      return res.status(404).json({ message: 'Cart item not found or does not belong to user' });
+    }
+
+    await service.deleteCartById(cartId, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Product removed from cart successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
 
 module.exports = {
   getUserCartItems,
   addToCart,
-  updateCart
+  updateCart,
+  remove,
 };
