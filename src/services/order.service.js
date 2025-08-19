@@ -2,6 +2,8 @@ const Order = require('../models/order.model');
 const Address = require('../models/address.model');
 const Cart = require('../models/cart.model');
 const User = require('../models/user.model');
+const { emailService } = require('./index');
+const mongoose = require('mongoose');
 
 /**
  * Get all orders with pagination, filtering and search (admin use)
@@ -62,18 +64,24 @@ const getAllOrders = async (query = {}) => {
 
     let searchFilter = {};
     if (search && String(search).trim() !== '') {
-      const regex = { $regex: String(search), $options: 'i' };
-      searchFilter = {
-        $or: [
-          { phoneNumber: regex },
-          { status: regex },
-          { 'address.addressLine1': regex },
-          { 'address.addressLine2': regex },
-          { 'address.city': regex },
-          { 'address.state': regex },
-          { 'address.zip': regex },
-        ],
-      };
+      const term = String(search).trim();
+      const regex = { $regex: term, $options: 'i' };
+      const orConditions = [
+        { phoneNumber: regex },
+        { status: regex },
+        { 'cancelDetails.reason': regex },
+        { 'address.addressLine1': regex },
+        { 'address.addressLine2': regex },
+        { 'address.city': regex },
+        { 'address.state': regex },
+        { 'address.zip': regex },
+      ];
+
+      if (mongoose.Types.ObjectId.isValid(term)) {
+        orConditions.unshift({ _id: new mongoose.Types.ObjectId(term) });
+      }
+
+      searchFilter = { $or: orConditions };
     }
 
     const combined = { ...filter, ...searchFilter };
@@ -168,6 +176,25 @@ const createOrderFromCart = async ({ userId, addressId }) => {
 
   await Cart.updateMany({ userId, isOrdered: false }, { $set: { isOrdered: true } });
 
+  try {
+    // Populate for email templates (product names)
+    const populatedOrder = await Order.findById(orderDoc._id)
+      .populate({ path: 'productsDetails.productId', select: 'name' })
+      .lean();
+
+    // Fetch buyer details
+    const buyer = await User.findById(userId).select('email user_details.name').lean();
+    const buyerEmail = buyer && buyer.email ? buyer.email : null;
+    const buyerName = buyer && buyer.user_details && buyer.user_details.name ? buyer.user_details.name : '';
+
+    // Send emails in parallel (non-blocking)
+    await Promise.allSettled([
+      emailService.sendOrderPlacedEmailForBuyer(buyerEmail, populatedOrder, buyerName),
+      emailService.sendOrderPlacedEmailForSeller(buyerEmail, populatedOrder, buyerName),
+    ]);
+  } catch (error) {
+    return error;
+  }
   return orderDoc;
 };
 
