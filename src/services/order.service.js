@@ -172,6 +172,9 @@ const createOrderFromCart = async ({ userId, addressId }) => {
     },
     productsDetails,
     phoneNumber,
+    statusHistory: [
+      { status: 'placed', updatedBy: 'user', note: 'Order placed' }
+    ],
   });
 
   await Cart.updateMany({ userId, isOrdered: false }, { $set: { isOrdered: true } });
@@ -222,9 +225,78 @@ const cancelOrder = async (id, userId, reason, role) => {
   const filter = role === 'admin' ? { _id: id } : { _id: id, userId };
   return Order.findOneAndUpdate(
     filter,
-    { $set: { status: 'cancelled', 'cancelDetails.reason': reason || null, 'cancelDetails.canceledBy': role === 'admin' ? 'admin' : 'user', 'cancelDetails.date': Date.now() } },
+    {
+      $set: {
+        status: 'cancelled',
+        'cancelDetails.reason': reason || null,
+        'cancelDetails.canceledBy': role === 'admin' ? 'admin' : 'user',
+        'cancelDetails.date': Date.now(),
+      },
+      $push: {
+        statusHistory: {
+          status: 'cancelled',
+          updatedBy: role === 'admin' ? 'admin' : 'user',
+          note: reason || null,
+          date: new Date(),
+        },
+      },
+    },
     { new: true }
   );
+};
+
+const allowedTransitions = {
+  placed: ['accepted', 'cancelled'],
+  accepted: ['inprogress', 'cancelled'],
+  inprogress: ['completed'],
+  completed: ['delivered'],
+  delivered: [],
+  cancelled: [],
+};
+
+const updateOrderStatus = async (id, newStatus, note, role) => {
+  // Only admin can update status (except cancel which has separate flow)
+  if (role !== 'admin') {
+    const error = new Error('Forbidden');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const order = await Order.findById(id);
+  if (!order) {
+    const error = new Error('Order not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const current = order.status;
+  // Idempotent: if status is same, optionally append note and return
+  if (current === newStatus) {
+    if (note && note !== '') {
+      order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+      await order.save();
+    }
+    await order.populate([
+      { path: 'userId', select: 'email phoneNumber role user_details' },
+      { path: 'productsDetails.productId', select: 'name price images' },
+    ]);
+    return order;
+  }
+  const allowed = allowedTransitions[current] || [];
+  if (!allowed.includes(newStatus)) {
+    const error = new Error(`Invalid status transition from ${current} to ${newStatus}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  order.status = newStatus;
+  order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+  await order.save();
+  await order.populate([
+    { path: 'userId', select: 'email phoneNumber role user_details' },
+    { path: 'productsDetails.productId', select: 'name price images' },
+  ]);
+  return order;
 };
 
 module.exports = {
@@ -233,5 +305,6 @@ module.exports = {
   getOrdersByUser,
   getOrderById,
   cancelOrder,
+  updateOrderStatus,
 };
 
