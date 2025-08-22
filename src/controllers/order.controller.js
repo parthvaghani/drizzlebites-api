@@ -46,8 +46,8 @@ const cancelOrder = catchAsync(async (req, res) => {
 });
 
 const updateStatus = catchAsync(async (req, res) => {
-  const { status, note } = req.body;
-  const updated = await service.updateOrderStatus(req.params.id, status, note, req.user.role);
+  const { status, paymentStatus, note } = req.body;
+  const updated = await service.updateOrderStatus(req.params.id, status, paymentStatus, note, req.user.role, req.user._id);
   return res.status(200).json({ success: true, message: 'Order status updated successfully', data: updated });
 });
 

@@ -223,7 +223,7 @@ const getOrderById = async (id, userId, role) => {
 
 const cancelOrder = async (id, userId, reason, role) => {
   const filter = role === 'admin' ? { _id: id } : { _id: id, userId };
-  return Order.findOneAndUpdate(
+  const updatedOrder = await Order.findOneAndUpdate(
     filter,
     {
       $set: {
@@ -242,7 +242,38 @@ const cancelOrder = async (id, userId, reason, role) => {
       },
     },
     { new: true }
-  );
+  ).populate([
+    { path: 'userId', select: 'email phoneNumber role user_details' },
+    { path: 'productsDetails.productId', select: 'name price images' },
+  ]);
+
+  // Send email notifications after successful cancellation
+  if (updatedOrder) {
+    const buyerEmail = updatedOrder.userId?.email;
+    const buyerName = updatedOrder.userId?.user_details?.name || 'Customer';
+
+    // Send email to buyer
+    if (buyerEmail) {
+      emailService.sendOrderStatusUpdateEmailForBuyer(
+        buyerEmail,
+        updatedOrder,
+        'cancelled',
+        buyerName,
+        reason
+      );
+    }
+
+    // Send email to seller
+    emailService.sendOrderStatusUpdateEmailForSeller(
+      updatedOrder,
+      'cancelled',
+      buyerEmail,
+      buyerName,
+      reason
+    );
+  }
+
+  return updatedOrder;
 };
 
 const allowedTransitions = {
@@ -254,26 +285,39 @@ const allowedTransitions = {
   cancelled: [],
 };
 
-const updateOrderStatus = async (id, newStatus, note, role) => {
-  // Only admin can update status (except cancel which has separate flow)
-  if (role !== 'admin') {
-    const error = new Error('Forbidden');
-    error.statusCode = 403;
-    throw error;
-  }
+const ApiError = require('../utils/ApiError');
+const httpStatus = require('http-status');
 
+const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, requestUserId) => {
+  // Only admin can update status (except cancel which has separate flow)
   const order = await Order.findById(id);
   if (!order) {
-    const error = new Error('Order not found');
-    error.statusCode = 404;
-    throw error;
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  // Non-admins can only update paymentStatus, and only on their own orders
+  if (role !== 'admin') {
+    if (!requestUserId || order.userId.toString() !== requestUserId.toString()) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Forbidden');
+    }
+    if (typeof newStatus === 'string' && newStatus !== '') {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Only admins can update order status');
+    }
   }
 
   const current = order.status;
-  // Idempotent: if status is same, optionally append note and return
+  // Idempotent: if status is same, optionally update paymentStatus and/or append note and return
   if (current === newStatus) {
+    let changed = false;
+    if (typeof newPaymentStatus === 'string' && newPaymentStatus !== order.paymentStatus) {
+      order.paymentStatus = newPaymentStatus;
+      changed = true;
+    }
     if (note && note !== '') {
       order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+      changed = true;
+    }
+    if (changed) {
       await order.save();
     }
     await order.populate([
@@ -283,19 +327,53 @@ const updateOrderStatus = async (id, newStatus, note, role) => {
     return order;
   }
   const allowed = allowedTransitions[current] || [];
-  if (!allowed.includes(newStatus)) {
-    const error = new Error(`Invalid status transition from ${current} to ${newStatus}`);
-    error.statusCode = 400;
-    throw error;
+  if (typeof newStatus === 'string' && newStatus !== '' && !allowed.includes(newStatus)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Invalid status transition from ${current} to ${newStatus}`);
   }
 
-  order.status = newStatus;
-  order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+  if (typeof newStatus === 'string' && newStatus !== '') {
+    order.status = newStatus;
+  }
+  if (typeof newPaymentStatus === 'string' && newPaymentStatus !== order.paymentStatus) {
+    order.paymentStatus = newPaymentStatus;
+  }
+  if (typeof newStatus === 'string' && newStatus !== '') {
+    order.statusHistory.push({ status: newStatus, updatedBy: role === 'admin' ? 'admin' : 'user', note: note || null, date: new Date() });
+  } else if (note && note !== '') {
+    order.statusHistory.push({ status: order.status, updatedBy: role === 'admin' ? 'admin' : 'user', note: note || null, date: new Date() });
+  }
   await order.save();
   await order.populate([
     { path: 'userId', select: 'email phoneNumber role user_details' },
     { path: 'productsDetails.productId', select: 'name price images' },
   ]);
+
+  // Send email notifications after successful status update
+  if (typeof newStatus === 'string' && newStatus !== '') {
+    const buyerEmail = order.userId?.email;
+    const buyerName = order.userId?.user_details?.name || 'Customer';
+
+    // Send email to buyer
+    if (buyerEmail) {
+      emailService.sendOrderStatusUpdateEmailForBuyer(
+        buyerEmail,
+        order,
+        newStatus,
+        buyerName,
+        note
+      );
+    }
+
+    // Send email to seller
+    emailService.sendOrderStatusUpdateEmailForSeller(
+      order,
+      newStatus,
+      buyerEmail,
+      buyerName,
+      note
+    );
+  }
+
   return order;
 };
 

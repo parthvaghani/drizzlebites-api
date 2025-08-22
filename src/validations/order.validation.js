@@ -37,10 +37,13 @@ const getAllOrders = {
 
 const updateStatus = {
   params: orderIdParam,
-  body: Joi.object().keys({
-    status: Joi.string().valid('placed', 'accepted', 'inprogress', 'completed', 'cancelled', 'delivered').required(),
-    note: Joi.string().allow('', null),
-  }),
+  body: Joi.object()
+    .keys({
+      status: Joi.string().valid('placed', 'accepted', 'inprogress', 'completed', 'cancelled', 'delivered').optional(),
+      paymentStatus: Joi.string().valid('paid', 'unpaid').optional(),
+      note: Joi.string().allow('', null),
+    })
+    .or('status', 'paymentStatus'),
 };
 
 module.exports = {

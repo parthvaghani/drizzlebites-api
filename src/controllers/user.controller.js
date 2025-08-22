@@ -88,8 +88,8 @@ const getUser = catchAsync(async (req, res) => {
 });
 
 const updateUser = catchAsync(async (req, res) => {
-  const userId = req.params.userId;
-  const updateData = { ...req.body };
+  // const userId = req.params.userId;
+  // const updateData = { ...req.body };
 
   // Initialize user_details as an empty object if it doesn't exist or isn't an object
   // if (!updateData.user_details || typeof updateData.user_details !== 'object') {
@@ -118,7 +118,7 @@ const updateUser = catchAsync(async (req, res) => {
   //   updateData.user_details.avatar = imageUrl;
   // }
 
-  const updatedUser = await userService.updateUserProfileById(userId, updateData);
+  // const updatedUser = await userService.updateUserProfileById(userId, updateData);
 
   res.status(200).json({
     message: 'User updated successfully',

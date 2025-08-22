@@ -81,7 +81,7 @@ const buildBuyerOrderHtml = (order, buyerName) => {
   const total = totals.subtotal - totals.discount;
 
   return wrapMail(`
-    <h2 style="text-align:center;">Order Confirmation</h2>
+    <h2 style="text-align:center;">Your order has been placed successfully</h2>
     <p>Hi ${buyerName || 'Customer'},</p>
     <p>Thanks for your purchase! Your order has been placed successfully.</p>
     <p><strong>Order ID:</strong> ${order?._id || ''}<br/>
@@ -197,8 +197,91 @@ const sendOrderPlacedEmailForSeller = async (buyerEmail, order, buyerName) => {
   }
 };
 
+/* ---------- Status Update Email Functions ---------- */
+const statusMessages = {
+  'placed': 'Your order has been placed and is being reviewed.',
+  'accepted': 'Your order has been accepted and is being prepared.',
+  'inprogress': 'Your order is now being processed.',
+  'completed': 'Your order has been completed and is ready for delivery.',
+  'delivered': 'Your order has been delivered successfully.',
+  'cancelled': 'Your order has been cancelled.'
+};
+
+const statusEmojis = {
+  'placed': '📋',
+  'accepted': '✅',
+  'inprogress': '⏳',
+  'completed': '🎉',
+  'delivered': '📦',
+  'cancelled': '❌'
+};
+const buildStatusUpdateHtml = (order, newStatus, buyerName, note = '') => {
+  const emoji = statusEmojis[newStatus] || '📋';
+  const message = statusMessages[newStatus] || 'Your order status has been updated.';
+
+  return wrapMail(`
+    <h2 style="text-align:center;">${emoji} Your Order ${newStatus === 'completed' ? 'Ready to Ship' : newStatus}</h2>
+    <p>Hi ${buyerName || 'Customer'},</p>
+    <p>${message}</p>
+
+    <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;">
+      <p><strong>Order ID:</strong> ${order?._id || ''}</p>
+      ${newStatus === 'cancelled' ? `<p><strong>Status:</strong> <span style="color:#ff0000;font-weight:bold;">${newStatus.toUpperCase()}</span></p>` : `<p><strong>Status:</strong> <span style="color:#257112;font-weight:bold;">${newStatus.toUpperCase()}</span></p>`}
+      <p><strong>Updated On:</strong> ${formatDate(new Date())}</p>
+      ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
+    </div>
+
+    <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:20px;">
+      Thank you for shopping with <strong>Aavkar Mukhwas</strong>.<br>
+      © ${new Date().getFullYear()} Aavkar Mukhwas. All rights reserved.
+    </p>
+  `);
+};
+
+const buildSellerStatusUpdateHtml = (order, newStatus, buyerEmail, buyerName, note = '') => {
+  const emoji = statusEmojis[newStatus] || '📋';
+
+  return wrapMail(`
+    <h2 style="text-align:center;">${emoji} ${buyerName || 'Buyer'}'s Order ${newStatus === 'completed' ? 'Ready to Ship' : newStatus}</h2>
+    <p><strong>Order ID:</strong> ${order?._id}</p>
+    <p><strong>Buyer:</strong> ${buyerName || ''} (${buyerEmail || ''})</p>
+    ${newStatus === 'cancelled' ? `<p><strong>Status:</strong> <span style="color:#ff0000;font-weight:bold;">${newStatus.toUpperCase()}</span></p>` : `<p><strong>Status:</strong> <span style="color:#257112;font-weight:bold;">${newStatus.toUpperCase()}</span></p>`}
+    <p><strong>Updated On:</strong> ${formatDate(new Date())}</p>
+    ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
+  `);
+};
+
+const sendOrderStatusUpdateEmailForBuyer = async (buyerEmail, order, newStatus, buyerName, note = '') => {
+  if (!buyerEmail) return;
+  try {
+    await sendMail({
+      to: buyerEmail,
+      subject: `Order Status Updated - ${newStatus.toUpperCase()}`,
+      text: `Your order ${order?._id} status has been updated to ${newStatus}.`,
+      html: buildStatusUpdateHtml(order, newStatus, buyerName, note),
+    });
+  } catch (err) {
+    logger.error('Failed to send status update email to buyer', err);
+  }
+};
+
+const sendOrderStatusUpdateEmailForSeller = async (order, newStatus, buyerEmail, buyerName, note = '') => {
+  try {
+    await sendMail({
+      to: SELLER_RECIPIENTS.join(','),
+      subject: `Order Status Updated - ${newStatus.toUpperCase()}`,
+      text: `Order ${order?._id} status has been updated to ${newStatus}.`,
+      html: buildSellerStatusUpdateHtml(order, newStatus, buyerEmail, buyerName, note),
+    });
+  } catch (err) {
+    logger.error('Failed to send status update email to seller(s)', err);
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendOrderPlacedEmailForBuyer,
   sendOrderPlacedEmailForSeller,
+  sendOrderStatusUpdateEmailForBuyer,
+  sendOrderStatusUpdateEmailForSeller,
 };

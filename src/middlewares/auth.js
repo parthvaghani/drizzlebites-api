@@ -39,7 +39,7 @@ const verifyCallback = (req, resolve, reject, requiredRights) => async (decoded)
     if (requiredRights && requiredRights.length > 0) {
       const userRights = roleRights.get(user.role) || [];
       const hasRequiredRights = requiredRights.every((right) => userRights.includes(right));
-      const isSameUser = req.params?.userId === user.id.toString();
+      // const isSameUser = req.params?.userId === user.id.toString();
 
       // Allow if user has rights and is accessing their own resource, or if user is admin
       if (!hasRequiredRights && user.role !== 'admin') {
