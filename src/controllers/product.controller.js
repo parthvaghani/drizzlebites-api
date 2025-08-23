@@ -57,6 +57,7 @@ const remove = async (req, res) => {
     if (req.user.role !== 'admin') return res.status(400).json({ message: 'You do not have permission to access this resource.' });
     if (!req.params.id) return res.status(400).json({ message: 'Product ID is required' });
     await service.deleteProduct(req.params.id);
+    await service.deleteProductFromCart(req.params.id);
     res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message || 'Internal server error' });

@@ -209,6 +209,7 @@ const getOrdersByUser = async (userId, userRole) => {
   }
   else {
     return Order.find({ userId })
+      .sort({ createdAt: -1 })
       .populate({ path: 'userId', select: 'email phoneNumber role user_details' })
       .populate({ path: 'productsDetails.productId', select: 'name price images' });
   }

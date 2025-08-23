@@ -1,4 +1,5 @@
 const Product = require('../models/product.model');
+const Cart = require('../models/product.model');
 const ProductCategory = require('../models/productCategory.model');
 const Order = require('../models/order.model');
 
@@ -182,6 +183,19 @@ const addProductReview = async (productId, userId, reviewData) => {
   }
 };
 
+const deleteProductFromCart = async (id) => {
+  try {
+    if (!id) throw new Error('Product ID is required');
+    const product = await Product.findById(id);
+    if (!product) throw new Error('Product not found');
+    // Delete all cart items with productId === id
+    await Cart.deleteMany({ productId: id });
+    return { message: 'All cart items with this product have been deleted' };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createProduct,
   getAllProducts,
@@ -189,4 +203,5 @@ module.exports = {
   updateProduct,
   deleteProduct,
   addProductReview,
+  deleteProductFromCart
 };
