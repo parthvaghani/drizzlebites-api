@@ -110,7 +110,7 @@ const getAllOrders = async (query = {}) => {
   }
 };
 
-const createOrderFromCart = async ({ userId, addressId }) => {
+const createOrderFromCart = async ({ userId, addressId, ReqBody }) => {
   const address = await Address.findOne({ _id: addressId, userId });
   if (!address) {
     const error = new Error('Address not found');
@@ -198,7 +198,7 @@ const createOrderFromCart = async ({ userId, addressId }) => {
   } catch (error) {
     return error;
   }
-  return orderDoc;
+  return { orderDoc, ReqBody };
 };
 
 const getOrdersByUser = async (userId, userRole) => {
@@ -377,6 +377,60 @@ const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, re
   return order;
 };
 
+const updateOrder = async (id, updateData, userId, role) => {
+  const filter = role === 'admin' ? { _id: id } : { _id: id, userId };
+  const order = await Order.findOne(filter);
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+  }
+
+  // Only allow updates if order is in 'placed' status
+  if (order.status === 'cancelled' || order.status === 'delivered') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Order can not be updated when status is "cancelled or delivered');
+  }
+
+  // Build update object with only provided fields
+  const updateObject = {};
+
+  if (updateData.address) {
+    updateObject.address = { ...order.address, ...updateData.address };
+  }
+
+  if (updateData.phoneNumber !== undefined) {
+    updateObject.phoneNumber = updateData.phoneNumber;
+  }
+
+  if (updateData.productsDetails) {
+    updateObject.productsDetails = updateData.productsDetails;
+  }
+
+  if (updateData.shippingCharge !== undefined) {
+    updateObject.shippingCharge = updateData.shippingCharge;
+  }
+
+  // Add to status history
+  updateObject.$push = {
+    statusHistory: {
+      status: order.status,
+      updatedBy: role === 'admin' ? 'admin' : 'user',
+      note: 'Order details updated',
+      date: new Date(),
+    },
+  };
+
+  const updatedOrder = await Order.findOneAndUpdate(
+    filter,
+    updateObject,
+    { new: true }
+  ).populate([
+    { path: 'userId', select: 'email phoneNumber role user_details' },
+    { path: 'productsDetails.productId', select: 'name price images' },
+  ]);
+
+  return updatedOrder;
+};
+
 module.exports = {
   getAllOrders,
   createOrderFromCart,
@@ -384,5 +438,6 @@ module.exports = {
   getOrderById,
   cancelOrder,
   updateOrderStatus,
+  updateOrder,
 };
 

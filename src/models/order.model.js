@@ -97,6 +97,13 @@ const orderSchema = new mongoose.Schema({
       }
     }
   ],
+  razorpayPaymentId: {
+    type: String,
+  },
+  shippingCharge: {
+    type: Number,
+    default: 0,
+  },
   cancelDetails: {
     reason: {
       type: String,

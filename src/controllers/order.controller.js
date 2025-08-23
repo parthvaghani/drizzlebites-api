@@ -1,5 +1,7 @@
 const catchAsync = require('../utils/catchAsync');
 const service = require('../services/order.service');
+const ApiError = require('../utils/ApiError');
+const httpStatus = require('http-status');
 
 const getAllOrders = catchAsync(async (req, res) => {
   const userRole = req.user && req.user.role;
@@ -11,9 +13,10 @@ const getAllOrders = catchAsync(async (req, res) => {
 });
 
 const createOrder = catchAsync(async (req, res) => {
+  const ReqBody = req.body;
   const userId = req.user && req.user._id;
   const phoneNumber = req.user && req.user.phoneNumber;
-  const created = await service.createOrderFromCart({ userId, addressId: req.params.id, phoneNumber });
+  const created = await service.createOrderFromCart({ userId, addressId: req.params.id, phoneNumber, ReqBody });
   return res.status(201).json({ success: true, message: 'Order placed successfully', data: created });
 });
 
@@ -51,6 +54,15 @@ const updateStatus = catchAsync(async (req, res) => {
   return res.status(200).json({ success: true, message: 'Order status updated successfully', data: updated });
 });
 
+const updateOrder = catchAsync(async (req, res) => {
+  const userId = req.user && req.user._id;
+  if (req.user.role === 'user') {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'This action can be accessed only by admin');
+  }
+  const updated = await service.updateOrder(req.params.id, req.body, userId, req.user.role);
+  return res.status(200).json({ success: true, message: 'Order updated successfully', data: updated });
+});
+
 module.exports = {
   getAllOrders,
   createOrder,
@@ -58,5 +70,6 @@ module.exports = {
   getOrderById,
   cancelOrder,
   updateStatus,
+  updateOrder,
 };
 

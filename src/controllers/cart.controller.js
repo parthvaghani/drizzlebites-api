@@ -22,7 +22,7 @@ const getUserCartItems = catchAsync(async (req, res) => {
 // Add a product to cart
 const addToCart = catchAsync(async (req, res) => {
   const user = req.user;
-  const product = await getProductById(req.body.productId);
+  // const product = await getProductById(req.body.productId);
 
   // let variantLabel = '';
   // let variantId = '';
