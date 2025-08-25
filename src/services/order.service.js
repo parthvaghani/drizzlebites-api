@@ -211,7 +211,7 @@ const getOrdersByUser = async (userId, userRole) => {
     return Order.find({ userId })
       .sort({ createdAt: -1 })
       .populate({ path: 'userId', select: 'email phoneNumber role user_details' })
-      .populate({ path: 'productsDetails.productId', select: 'name price images' });
+      .populate({ path: 'productsDetails.productId', select: 'name price images review' });
   }
 };
 
@@ -219,7 +219,7 @@ const getOrderById = async (id, userId, role) => {
   const filter = role === 'admin' ? { _id: id } : { _id: id, userId };
   return Order.findOne(filter)
     .populate({ path: 'userId', select: 'email phoneNumber role user_details' })
-    .populate({ path: 'productsDetails.productId', select: 'name price images' });
+    .populate({ path: 'productsDetails.productId', select: 'name price images review' });
 };
 
 const cancelOrder = async (id, userId, reason, role) => {

@@ -11,6 +11,7 @@ const leadRoute = require('./lead.routes');
 const cartRoute = require('./cart.route');
 const addressRoute = require('./address.routes');
 const orderRoute = require('./order.routes');
+const reviewRoute = require('./review.routes');
 const router = express.Router();
 
 const defaultRoutes = [
@@ -55,6 +56,11 @@ const defaultRoutes = [
   {
     path: '/orders',
     route: orderRoute,
+  }
+  ,
+  {
+    path: '/reviews',
+    route: reviewRoute,
   }
 ];
 
