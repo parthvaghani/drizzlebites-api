@@ -70,6 +70,9 @@ const updateProduct = {
       gm: Joi.array().items(variantSchema),
       kg: Joi.array().items(variantSchema),
     }).optional(),
+    imagesToRemove: Joi.array().items(Joi.string()).optional().messages({
+      'array.base': 'Images to remove must be an array of strings',
+    }),
   }),
 };
 

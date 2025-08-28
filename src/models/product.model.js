@@ -11,7 +11,9 @@ const productSchema = new mongoose.Schema({
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductCategory', required: true },
   name: { type: String, required: true },
   description: String,
-  images: [String],
+  images: [{
+    url: { type: String, required: true },
+  }],
   ingredients: [String],
   benefits: [String],
   isPremium: { type: Boolean, default: false },

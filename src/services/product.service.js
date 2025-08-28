@@ -4,6 +4,7 @@ const ProductCategory = require('../models/productCategory.model');
 const Order = require('../models/order.model');
 const path = require('path');
 const { uploadFileToS3, deleteFileFromS3 } = require('../Helpers/aws-s3');
+// const { url } = require('inspector');
 
 const createProduct = async (data, files) => {
   try {
@@ -18,7 +19,7 @@ const createProduct = async (data, files) => {
           if (!result.status) {
             throw new Error('Failed to upload image');
           }
-          return result.fileUrl;
+          return { url: key };
         })
       );
       data.images = uploads;
@@ -139,9 +140,11 @@ const updateProduct = async (id, data, files) => {
     if (!id) throw new Error('Product ID is required');
     const product = await Product.findById(id);
     if (!product) throw new Error('Product not found');
-    // If images uploaded via multer, upload to S3 and merge/replace
+
+    // 1) Upload new images (if any) to S3 and prepare $push payload
+    let uploads = [];
     if (files && files.length > 0) {
-      const uploads = await Promise.all(
+      uploads = await Promise.all(
         files.map(async (file, index) => {
           const safeName = path.basename(file.originalname).replace(/\s+/g, '-');
           const key = `products/${Date.now()}-${index}-${safeName}`;
@@ -149,30 +152,59 @@ const updateProduct = async (id, data, files) => {
           if (!result.status) {
             throw new Error('Failed to upload image');
           }
-          return result.fileUrl;
+          return { url: key };
         })
       );
-      // If request wishes to replace images entirely, respect a flag; default to replace
-      const shouldAppend = Boolean(data && data.appendImages === 'true');
-      if (shouldAppend && Array.isArray(product.images)) {
-        data.images = [...product.images, ...uploads];
-      } else {
-        // delete old product images from S3 if they exist
-        if (Array.isArray(product.images) && product.images.length) {
-          await Promise.all(
-            product.images.map(async (img) => {
-              try { await deleteFileFromS3(img); } catch { /* noop */ }
-            })
-          );
-        }
-        data.images = uploads;
-      }
-      // Remove control flag from data if present
-      if (data && Object.prototype.hasOwnProperty.call(data, 'appendImages')) {
-        delete data.appendImages;
+    }
+
+    // 2) Build updates; split into two to avoid 'images' path conflicts
+    let imagesToRemove = [];
+    if (data && Object.prototype.hasOwnProperty.call(data, 'imagesToRemove')) {
+      if (Array.isArray(data.imagesToRemove)) {
+        imagesToRemove = data.imagesToRemove;
+      } else if (data.imagesToRemove !== undefined && data.imagesToRemove !== null && data.imagesToRemove !== '') {
+        imagesToRemove = [data.imagesToRemove];
       }
     }
-    return await Product.findByIdAndUpdate(id, data, { new: true });
+    // First update: $pull
+    if (imagesToRemove.length > 0) {
+      await Product.findByIdAndUpdate(
+        id,
+        { $pull: { images: { url: { $in: imagesToRemove } } } },
+        { new: false }
+      );
+    }
+
+    // Build $set and $push for second update
+    const dataClone = { ...data };
+    delete dataClone.images; // never set images directly
+    delete dataClone.imagesToRemove; // helper only
+    const secondUpdate = {};
+    if (Object.keys(dataClone).length > 0) {
+      secondUpdate.$set = dataClone;
+    }
+    if (uploads.length > 0) {
+      secondUpdate.$push = { images: { $each: uploads } };
+    }
+
+    // Second update: $set and/or $push
+    let updated;
+    if (Object.keys(secondUpdate).length) {
+      updated = await Product.findByIdAndUpdate(id, secondUpdate, { new: true });
+    } else {
+      updated = await Product.findById(id);
+    }
+
+    // 4) Delete removed images from S3 AFTER DB update succeeds
+    if (imagesToRemove.length > 0) {
+      await Promise.all(
+        imagesToRemove.map(async (imgKey) => {
+          try { await deleteFileFromS3(imgKey); } catch { /* noop */ }
+        })
+      );
+    }
+
+    return updated;
   } catch (error) {
     throw error;
   }
@@ -183,6 +215,13 @@ const deleteProduct = async (id) => {
     if (!id) throw new Error('Product ID is required');
     const product = await Product.findById(id);
     if (!product) throw new Error('Product not found');
+    if (product.images && product.images.length) {
+      await Promise.all(
+        product.images.map(async (img) => {
+          try { await deleteFileFromS3(img.url); } catch { /* noop */ }
+        })
+      );
+    }
     return await Product.findByIdAndDelete(id);
   } catch (error) {
     throw error;
@@ -257,4 +296,3 @@ module.exports = {
   addProductReview,
   deleteProductFromCart
 };
- 

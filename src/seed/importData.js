@@ -60,9 +60,9 @@ const importData = async () => {
     // console.log('Data import/update completed');
     mongoose.connection.close();
   } catch (err) {
-    return err;
     // console.error(err);
     mongoose.connection.close();
+    return err;
   }
 };
 
