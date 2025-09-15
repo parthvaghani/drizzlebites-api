@@ -23,6 +23,7 @@ const envVarsSchema = Joi.object()
     SMTP_PORT: Joi.number().description('port to connect to the email server'),
     SMTP_USERNAME: Joi.string().description('username for email server'),
     SMTP_PASSWORD: Joi.string().description('password for email server'),
+    SMTP_SECURE: Joi.boolean().description('use TLS/SSL for SMTP (usually true for port 465)'),
     EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
     FRONT_END_BASE_URL: Joi.string().description('the from field in the emails sent by the app'),
     AWS_ACCESS_KEY_ID: Joi.string().description('aws access key'),
@@ -30,6 +31,7 @@ const envVarsSchema = Joi.object()
     AWS_S3_BUCKET_NAME: Joi.string().description('aws s3 bucket name'),
     AWS_S3_BASE_URL: Joi.string().description('aws s3 images base url'),
     IS_SERVERLESS: Joi.boolean().default(false).description('Whether to run in serverless mode'),
+    SELLER_RECIPIENTS: Joi.string().description('comma-separated list of seller emails for notifications'),
   })
   .unknown();
 
@@ -68,6 +70,7 @@ module.exports = {
         user: envVars.SMTP_USERNAME,
         pass: envVars.SMTP_PASSWORD,
       },
+      secure: typeof envVars.SMTP_SECURE === 'boolean' ? envVars.SMTP_SECURE : undefined,
     },
     from: envVars.EMAIL_FROM,
   },
