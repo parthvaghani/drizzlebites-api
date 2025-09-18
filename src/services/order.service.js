@@ -269,7 +269,7 @@ const allowedTransitions = {
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('http-status');
 
-const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, requestUserId) => {
+const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, trackingNumber, trackingLink, courierName, customMessage, role, requestUserId) => {
   // Only admin can update status (except cancel which has separate flow)
   const order = await Order.findById(id);
   if (!order) {
@@ -294,11 +294,15 @@ const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, re
       order.paymentStatus = newPaymentStatus;
       changed = true;
     }
-    if (note && note !== '') {
-      order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+    // Tracking details are stored in statusHistory, not as direct properties
+    if (typeof note === 'string' && note !== order.note) {
+      order.note = note;
       changed = true;
     }
     if (changed) {
+      order.statusHistory.push({ status: newStatus, updatedBy: 'admin', note: note || null, date: new Date() });
+    }
+    if (note && note !== '') {
       await order.save();
     }
     await order.populate([
@@ -323,6 +327,10 @@ const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, re
       status: newStatus,
       updatedBy: role === 'admin' ? 'admin' : 'user',
       note: note || null,
+      trackingNumber: trackingNumber || null,
+      trackingLink: trackingLink || null,
+      courierName: courierName || null,
+      customMessage: customMessage || null,
       date: new Date(),
     });
   } else if (note && note !== '') {
@@ -330,6 +338,10 @@ const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, re
       status: order.status,
       updatedBy: role === 'admin' ? 'admin' : 'user',
       note: note || null,
+      trackingNumber: trackingNumber || null,
+      trackingLink: trackingLink || null,
+      courierName: courierName || null,
+      customMessage: customMessage || null,
       date: new Date(),
     });
   }
@@ -344,13 +356,32 @@ const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, role, re
     const buyerEmail = order.userId?.email;
     const buyerName = order.userId?.user_details?.name || 'Customer';
 
+    // Prepare tracking details for completed status
+    // Get tracking details from the latest status history entry
+    const latestStatusEntry = order.statusHistory && order.statusHistory.length > 0 ? order.statusHistory[order.statusHistory.length - 1] : {};
+
+    const trackingDetails = newStatus === 'completed' ? {
+      trackingNumber: latestStatusEntry.trackingNumber || null,
+      trackingLink: latestStatusEntry.trackingLink || null,
+      courierName: latestStatusEntry.courierName || null,
+      customMessage: latestStatusEntry.customMessage || null
+    } : {};
+
+    // Debug logging to check tracking details (uncomment for debugging)
+    // const logger = require('../config/logger');
+    // logger.info('Order tracking details:', {
+    //   latestStatusEntry,
+    //   trackingDetails,
+    //   statusHistory: order.statusHistory
+    // });
+
     // Send email to buyer
     if (buyerEmail) {
-      emailService.sendOrderStatusUpdateEmailForBuyer(buyerEmail, order, newStatus, buyerName, note);
+      emailService.sendOrderStatusUpdateEmailForBuyer(buyerEmail, order, newStatus, buyerName, note, trackingDetails);
     }
 
     // Send email to seller
-    emailService.sendOrderStatusUpdateEmailForSeller(order, newStatus, buyerEmail, buyerName, note);
+    emailService.sendOrderStatusUpdateEmailForSeller(order, newStatus, buyerEmail, buyerName, note, trackingDetails);
   }
 
   return order;

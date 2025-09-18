@@ -87,6 +87,22 @@ const orderSchema = new mongoose.Schema(
           type: String,
           default: null,
         },
+        trackingNumber: {
+          type: Number,
+          default: null,
+        },
+        trackingLink: {
+          type: String,
+          default: null,
+        },
+        courierName: {
+          type: String,
+          default: null,
+        },
+        customMessage: {
+          type: String,
+          default: null,
+        },
         updatedBy: {
           type: String,
           enum: ['user', 'admin', 'system'],

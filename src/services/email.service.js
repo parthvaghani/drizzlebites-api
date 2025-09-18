@@ -216,7 +216,7 @@ const statusEmojis = {
   delivered: '📦',
   cancelled: '❌',
 };
-const buildStatusUpdateHtml = (order, newStatus, buyerName, note = '') => {
+const buildStatusUpdateHtml = (order, newStatus, buyerName, note = '', trackingDetails = {}) => {
   const emoji = statusEmojis[newStatus] || '📋';
   const message = statusMessages[newStatus] || 'Your order status has been updated.';
 
@@ -230,6 +230,16 @@ const buildStatusUpdateHtml = (order, newStatus, buyerName, note = '') => {
       ${newStatus === 'cancelled' ? `<p><strong>Status:</strong> <span style="color:#ff0000;font-weight:bold;">${newStatus.toUpperCase()}</span></p>` : `<p><strong>Status:</strong> <span style="color:#257112;font-weight:bold;">${newStatus.toUpperCase()}</span></p>`}
       <p><strong>Updated On:</strong> ${formatDate(new Date())}</p>
       ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
+
+      ${newStatus === 'completed' && (trackingDetails.trackingNumber || trackingDetails.trackingLink || trackingDetails.courierName || trackingDetails.customMessage) ? `
+        <div style="background:#e8f5e8;padding:12px;border-radius:6px;margin-top:10px;border-left:4px solid #257112;">
+          <h4 style="margin:0 0 8px 0;color:#257112;">📦 Tracking Information</h4>
+          ${trackingDetails.courierName ? `<p style="margin:4px 0;"><strong>Courier:</strong> ${trackingDetails.courierName}</p>` : ''}
+          ${trackingDetails.trackingNumber ? `<p style="margin:4px 0;"><strong>Tracking Number:</strong> ${trackingDetails.trackingNumber}</p>` : ''}
+          ${trackingDetails.trackingLink ? `<p style="margin:4px 0;"><strong>Track Your Order:</strong> <a href="${trackingDetails.trackingLink}" style="color:#257112;text-decoration:none;">Click here to track</a></p>` : ''}
+          ${trackingDetails.customMessage ? `<p style="margin:4px 0;"><strong>Message:</strong> ${trackingDetails.customMessage}</p>` : ''}
+        </div>
+      ` : ''}
     </div>
 
     <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:20px;">
@@ -239,7 +249,7 @@ const buildStatusUpdateHtml = (order, newStatus, buyerName, note = '') => {
   `);
 };
 
-const buildSellerStatusUpdateHtml = (order, newStatus, buyerEmail, buyerName, note = '') => {
+const buildSellerStatusUpdateHtml = (order, newStatus, buyerEmail, buyerName, note = '', trackingDetails = {}) => {
   const emoji = statusEmojis[newStatus] || '📋';
 
   return wrapMail(`
@@ -249,30 +259,40 @@ const buildSellerStatusUpdateHtml = (order, newStatus, buyerEmail, buyerName, no
     ${newStatus === 'cancelled' ? `<p><strong>Status:</strong> <span style="color:#ff0000;font-weight:bold;">${newStatus.toUpperCase()}</span></p>` : `<p><strong>Status:</strong> <span style="color:#257112;font-weight:bold;">${newStatus.toUpperCase()}</span></p>`}
     <p><strong>Updated On:</strong> ${formatDate(new Date())}</p>
     ${note ? `<p><strong>Note:</strong> ${note}</p>` : ''}
+
+    ${newStatus === 'completed' && (trackingDetails.trackingNumber || trackingDetails.trackingLink || trackingDetails.courierName || trackingDetails.customMessage) ? `
+      <div style="background:#e8f5e8;padding:12px;border-radius:6px;margin-top:10px;border-left:4px solid #257112;">
+        <h4 style="margin:0 0 8px 0;color:#257112;">📦 Tracking Information</h4>
+        ${trackingDetails.courierName ? `<p style="margin:4px 0;"><strong>Courier:</strong> ${trackingDetails.courierName}</p>` : ''}
+        ${trackingDetails.trackingNumber ? `<p style="margin:4px 0;"><strong>Tracking Number:</strong> ${trackingDetails.trackingNumber}</p>` : ''}
+        ${trackingDetails.trackingLink ? `<p style="margin:4px 0;"><strong>Tracking Link:</strong> <a href="${trackingDetails.trackingLink}" style="color:#257112;text-decoration:none;">${trackingDetails.trackingLink}</a></p>` : ''}
+        ${trackingDetails.customMessage ? `<p style="margin:4px 0;"><strong>Message:</strong> ${trackingDetails.customMessage}</p>` : ''}
+      </div>
+    ` : ''}
   `);
 };
 
-const sendOrderStatusUpdateEmailForBuyer = async (buyerEmail, order, newStatus, buyerName, note = '') => {
+const sendOrderStatusUpdateEmailForBuyer = async (buyerEmail, order, newStatus, buyerName, note = '', trackingDetails = {}) => {
   if (!buyerEmail) return;
   try {
     await sendMail({
       to: buyerEmail,
       subject: `Order Status Updated - ${newStatus.toUpperCase()}`,
       text: `Your order ${order?._id} status has been updated to ${newStatus}.`,
-      html: buildStatusUpdateHtml(order, newStatus, buyerName, note),
+      html: buildStatusUpdateHtml(order, newStatus, buyerName, note, trackingDetails),
     });
   } catch (err) {
     logger.error('Failed to send status update email to buyer', err);
   }
 };
 
-const sendOrderStatusUpdateEmailForSeller = async (order, newStatus, buyerEmail, buyerName, note = '') => {
+const sendOrderStatusUpdateEmailForSeller = async (order, newStatus, buyerEmail, buyerName, note = '', trackingDetails = {}) => {
   try {
     await sendMail({
       to: SELLER_RECIPIENTS.join(','),
       subject: `Order Status Updated - ${newStatus.toUpperCase()}`,
       text: `Order ${order?._id} status has been updated to ${newStatus}.`,
-      html: buildSellerStatusUpdateHtml(order, newStatus, buyerEmail, buyerName, note),
+      html: buildSellerStatusUpdateHtml(order, newStatus, buyerEmail, buyerName, note, trackingDetails),
     });
   } catch (err) {
     logger.error('Failed to send status update email to seller(s)', err);

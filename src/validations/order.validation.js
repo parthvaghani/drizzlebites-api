@@ -24,7 +24,7 @@ const cancelOrder = {
 const getAllOrders = {
   query: Joi.object().keys({
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(10),
+    limit: Joi.number().integer().min(1).default(10),
     sortBy: Joi.string(),
     search: Joi.string().allow(''),
     status: Joi.string().valid('placed', 'accepted', 'inprogress', 'completed', 'cancelled', 'delivered'),
@@ -43,6 +43,10 @@ const updateStatus = {
       status: Joi.string().valid('placed', 'accepted', 'inprogress', 'completed', 'cancelled', 'delivered').optional(),
       paymentStatus: Joi.string().valid('paid', 'unpaid').optional(),
       note: Joi.string().allow('', null),
+      trackingNumber: Joi.number().optional(),
+      trackingLink: Joi.string().optional(),
+      courierName: Joi.string().optional(),
+      customMessage: Joi.string().optional(),
     })
     .or('status', 'paymentStatus'),
 };
