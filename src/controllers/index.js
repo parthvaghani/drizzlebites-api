@@ -4,3 +4,4 @@ module.exports.productController = require('./product.controller');
 module.exports.productCategoryController = require('./productCategory.controller');
 module.exports.testimonialController = require('./testimonial.controller');
 module.exports.suggestedProductController = require('./suggestedProduct.controller');
+module.exports.couponController = require('./coupon.controller');

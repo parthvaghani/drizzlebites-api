@@ -134,10 +134,22 @@ const orderSchema = new mongoose.Schema(
         type: Date,
       },
     },
+    canceledBy: {
+      type: String,
+      enum: ['user', 'admin']
+    },
+    date: {
+      type: Date
+    },
+    applyCoupon: {
+      couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon', default: null },
+      discountAmount: { type: Number, default: null },
+      discountPercentage: { type: String, default: null },
+    },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 module.exports = mongoose.model('Orders', orderSchema);
