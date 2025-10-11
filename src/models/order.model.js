@@ -116,6 +116,11 @@ const orderSchema = new mongoose.Schema({
     date: {
       type: Date
     }
+  },
+  applyCoupon: {
+    couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon', default: null },
+    discountAmount: { type: Number, default: null },
+    discountPercentage: { type: String, default: null },
   }
 }, {
   timestamps: true,

@@ -7,3 +7,4 @@ module.exports.Lead = require('./lead.model');
 module.exports.Cart = require('./cart.model');
 module.exports.Cart = require('./address.model');
 module.exports.Cart = require('./order.model');
+module.exports.Coupon = require('./coupon.model');

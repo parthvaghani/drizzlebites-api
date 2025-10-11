@@ -159,7 +159,6 @@ const createOrderFromCart = async ({ userId, addressId, ReqBody }) => {
 
   const user = await User.findById(userId).select('phoneNumber');
   const phoneNumber = user && user.phoneNumber ? user.phoneNumber : '';
-
   const orderDoc = await Order.create({
     userId,
     address: {
@@ -172,6 +171,11 @@ const createOrderFromCart = async ({ userId, addressId, ReqBody }) => {
     },
     productsDetails,
     phoneNumber,
+    applyCoupon: {
+      couponId: ReqBody.couponId,
+      discountAmount: ReqBody.discountAmount,
+      discountPercentage: ReqBody.discountPercentage,
+    },
     statusHistory: [
       { status: 'placed', updatedBy: 'user', note: 'Order placed' }
     ],
@@ -192,8 +196,8 @@ const createOrderFromCart = async ({ userId, addressId, ReqBody }) => {
 
     // Send emails in parallel (non-blocking)
     await Promise.allSettled([
-      emailService.sendOrderPlacedEmailForBuyer(buyerEmail, populatedOrder, buyerName),
-      emailService.sendOrderPlacedEmailForSeller(buyerEmail, populatedOrder, buyerName),
+      emailService.sendOrderPlacedEmailForBuyer(buyerEmail, populatedOrder, buyerName, ReqBody.discountAmount),
+      emailService.sendOrderPlacedEmailForSeller(buyerEmail, populatedOrder, buyerName, ReqBody.discountAmount),
     ]);
   } catch (error) {
     return error;

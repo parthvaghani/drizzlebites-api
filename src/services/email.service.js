@@ -32,13 +32,17 @@ const joinAddress = (a = {}) =>
     .filter(Boolean).join('<br/>');
 
 /* ---------- Order Summary (plain text) ---------- */
-const formatOrderSummary = (order) =>
-  (order?.productsDetails || [])
+const formatOrderSummary = (order, couponDiscount) => {
+  const summary = (order?.productsDetails || [])
     .map((item) => {
       const weight = item.weightVariant && item.weight ? `${item.weight}${item.weightVariant}` : '';
       return `- Product: ${String(item.productId)} | Qty: ${item.totalUnit} | Weight: ${weight} | Price: ${item.pricePerUnit || 0} | Discount: ${item.discount || 0}`;
     })
     .join('\n');
+
+  return couponDiscount ? `${summary}\nCoupon Discount: ${couponDiscount}` : summary;
+};
+
 
 /* ---------- Table Builder ---------- */
 const buildProductRows = (order, trackTotals = { subtotal: 0, discount: 0 }) =>
@@ -62,6 +66,7 @@ const buildProductRows = (order, trackTotals = { subtotal: 0, discount: 0 }) =>
       </tr>`;
   }).join('');
 
+
 /* ---------- Common Layout Wrapper ---------- */
 const wrapMail = (content) => `
   <div style="font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111827;background:#d9ead3;padding:20px;">
@@ -74,8 +79,9 @@ const wrapMail = (content) => `
     </div>
   </div>`;
 
+
 /* ---------- Buyer HTML ---------- */
-const buildBuyerOrderHtml = (order, buyerName) => {
+const buildBuyerOrderHtml = (order, buyerName, couponDiscount) => {
   const totals = { subtotal: 0, discount: 0 };
   const productRows = buildProductRows(order, totals);
   const total = totals.subtotal - totals.discount;
@@ -91,7 +97,7 @@ const buildBuyerOrderHtml = (order, buyerName) => {
     <p>${joinAddress(order?.address)}</p>
 
     <h3>Order Summary</h3>
-    ${buildOrderTable(productRows, totals, total)}
+    ${buildOrderTable(productRows, totals, total, couponDiscount)}
 
     <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:20px;">
   Thank you for shopping with <strong>Aavkar Mukhwas</strong>.<br>
@@ -100,8 +106,9 @@ const buildBuyerOrderHtml = (order, buyerName) => {
   `);
 };
 
+
 /* ---------- Seller HTML ---------- */
-const buildSellerOrderHtml = (buyerEmail, order, buyerName) => {
+const buildSellerOrderHtml = (buyerEmail, order, buyerName, couponDiscount) => {
   const totals = { subtotal: 0, discount: 0 };
   const productRows = buildProductRows(order, totals);
   const total = totals.subtotal - totals.discount;
@@ -117,12 +124,24 @@ const buildSellerOrderHtml = (buyerEmail, order, buyerName) => {
     <p>${joinAddress(order?.address)}</p>
 
     <h3>Order Items</h3>
-    ${buildOrderTable(productRows, totals, total)}
+    ${buildOrderTable(productRows, totals, total, couponDiscount)}
   `);
 };
 
+
 /* ---------- Order Table Generator ---------- */
-const buildOrderTable = (rows, totals, total) => `
+const buildOrderTable = (rows, totals, total, couponDiscount) => {
+  const couponAmount = +couponDiscount || 0;
+  const grandTotal = total - couponAmount;
+
+  // Conditionally render coupon discount row
+  const couponRow = couponAmount > 0 ? `
+    <tr>
+      <td colspan="5" style="padding:10px;text-align:right;font-weight:bold;border:1px solid #e5e7eb;color:#16a34a;">Coupon Discount:</td>
+      <td style="padding:10px;border:1px solid #e5e7eb;color:#16a34a;">- ${formatMoney(couponAmount)}</td>
+    </tr>` : '';
+
+  return `
   <div style="overflow-x:auto;">
     <table style="border-collapse:collapse;width:100%;font-size:14px;">
       <thead>
@@ -139,63 +158,52 @@ const buildOrderTable = (rows, totals, total) => `
       <tfoot>
       <tr>
         <td colspan="5" style="padding:10px;text-align:right;font-weight:bold;border:1px solid #e5e7eb;">Subtotal:</td>
-        <td style="padding:10px;border:1px solid #e5e7eb;">${formatMoney(totals.subtotal)}</td>
+        <td style="padding:10px;border:1px solid #e5e7eb;">${formatMoney(totals.subtotal - totals.discount)}</td>
       </tr>
       <tr>
         <td colspan="5" style="padding:10px;text-align:right;font-weight:bold;border:1px solid #e5e7eb;">Discount:</td>
         <td style="padding:10px;border:1px solid #e5e7eb;">- ${formatMoney(totals.discount)}</td>
       </tr>
+      ${couponRow}
       <tr style="background:#f9fafb;">
         <td colspan="5" style="padding:12px;text-align:right;font-weight:bold;border:1px solid #e5e7eb;">Grand Total:</td>
-        <td style="padding:12px;border:1px solid #e5e7eb;font-weight:bold;">${formatMoney(total)}</td>
+        <td style="padding:12px;border:1px solid #e5e7eb;font-weight:bold;">${formatMoney(grandTotal)}</td>
       </tr>
     </tfoot>
     </table>
   </div>`;
-
-/* ---------- Public APIs ---------- */
-const sendVerificationEmail = async (to, token) => {
-  try {
-    const url = `${config.frontEndBaseUrl || ''}/verify-email?token=${encodeURIComponent(token)}`;
-    await sendMail({
-      to,
-      subject: 'Verify your email',
-      text: `Please verify your email by clicking: ${url}`,
-      html: `<p>Please verify your email by clicking the link below:</p><p><a href="${url}">Verify Email</a></p>`,
-    });
-  } catch (err) {
-    logger.error('Failed to send verification email', err);
-    throw err;
-  }
 };
 
-const sendOrderPlacedEmailForBuyer = async (buyerEmail, order, buyerName) => {
+
+const sendOrderPlacedEmailForBuyer = async (buyerEmail, order, buyerName, couponDiscount) => {
   if (!buyerEmail) return;
   try {
     await sendMail({
       to: buyerEmail,
       subject: 'Your order has been placed successfully',
-      text: formatOrderSummary(order),
-      html: buildBuyerOrderHtml(order, buyerName),
+      text: formatOrderSummary(order, couponDiscount),
+      html: buildBuyerOrderHtml(order, buyerName, couponDiscount),
     });
   } catch (err) {
     logger.error('Failed to send order email to buyer', err);
   }
 };
 
-const sendOrderPlacedEmailForSeller = async (buyerEmail, order, buyerName) => {
+
+const sendOrderPlacedEmailForSeller = async (buyerEmail, order, buyerName, couponDiscount) => {
   if (!buyerEmail) return;
   try {
     await sendMail({
       to: SELLER_RECIPIENTS.join(','),
       subject: 'New order received',
-      text: formatOrderSummary(order),
-      html: buildSellerOrderHtml(buyerEmail, order, buyerName),
+      text: formatOrderSummary(order, couponDiscount),
+      html: buildSellerOrderHtml(buyerEmail, order, buyerName, couponDiscount),
     });
   } catch (err) {
     logger.error('Failed to send order email to seller(s)', err);
   }
 };
+
 
 /* ---------- Status Update Email Functions ---------- */
 const statusMessages = {
@@ -279,7 +287,6 @@ const sendOrderStatusUpdateEmailForSeller = async (order, newStatus, buyerEmail,
 };
 
 module.exports = {
-  sendVerificationEmail,
   sendOrderPlacedEmailForBuyer,
   sendOrderPlacedEmailForSeller,
   sendOrderStatusUpdateEmailForBuyer,

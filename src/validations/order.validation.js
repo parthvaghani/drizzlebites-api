@@ -23,7 +23,7 @@ const cancelOrder = {
 const getAllOrders = {
   query: Joi.object().keys({
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(10),
+    limit: Joi.number().integer().min(1).default(10),
     sortBy: Joi.string(),
     search: Joi.string().allow(''),
     status: Joi.string().valid('placed', 'accepted', 'inprogress', 'completed', 'cancelled', 'delivered'),
