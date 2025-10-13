@@ -32,8 +32,15 @@ const createCoupon = async (data) => {
   return coupon;
 };
 
+// const getAllCoupons = async () => {
+//   return await Coupon.find().populate('userType', 'user_details.name email');
+// };
+
 const getAllCoupons = async () => {
-  return await Coupon.find().populate('userType', 'user_details.name email');
+  return await Coupon.find().populate({
+    path: 'userType',
+    select: 'user_details email'
+  });
 };
 
 const getCouponById = async (id) => {
