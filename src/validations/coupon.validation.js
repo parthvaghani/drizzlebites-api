@@ -35,7 +35,6 @@ const couponValidationSchema = Joi.object({
     'any.only': 'Type must be either \'unique\' or \'generic\'',
     'any.required': 'Coupon type is required',
   }),
-  // 👇 Smart conditional validation for userType
   userType: Joi.alternatives().conditional('type', {
     is: 'unique',
     then: Joi.string().required().messages({
@@ -51,6 +50,15 @@ const couponValidationSchema = Joi.object({
   }),
   usageCount: Joi.number().min(0).default(0).messages({
     'number.base': 'Usage count must be a number',
+  }),
+  // 🆕 NEW VALIDATION: maxUsagePerUser
+  maxUsagePerUser: Joi.number().min(1).default(1).messages({
+    'number.base': 'Max usage per user must be a number',
+    'number.min': 'Max usage per user must be at least 1',
+  }),
+  // 🆕 NEW VALIDATION: firstOrderOnly
+  firstOrderOnly: Joi.boolean().default(false).messages({
+    'boolean.base': 'First order only must be a boolean value',
   }),
   isActive: Joi.boolean().default(true).messages({
     'boolean.base': 'isActive must be a boolean value',

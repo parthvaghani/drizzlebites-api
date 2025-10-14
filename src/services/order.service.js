@@ -193,11 +193,20 @@ const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) =>
     ],
   });
 
-  // Increment coupon usage count if coupon was applied
+  // Increment coupon usage count AND log usage if coupon was applied
   if (ReqBody.couponId) {
     await Coupon.updateOne(
       { _id: ReqBody.couponId },
-      { $inc: { usageCount: 1 } }
+      {
+        $inc: { usageCount: 1 },
+        $push: {
+          usageLog: {
+            userId: userId,
+            usedAt: new Date(),
+            orderId: ReqBody.orderId || null,
+          }
+        }
+      }
     );
   }
 

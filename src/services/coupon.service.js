@@ -1,9 +1,10 @@
 const Coupon = require('../models/coupon.model');
 const User = require('../models/user.model');
+const Order = require('../models/order.model');
 
 // Utility to generate random coupon codes
 function generateCouponCode(prefix = 'SAVE') {
-  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6-char random
+  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `${prefix}-${randomPart}`;
 }
 
@@ -13,12 +14,10 @@ const createCoupon = async (data) => {
     throw new Error(`Coupon code "${data.couponCode}" already exists`);
   }
 
-  // If couponCode is missing, auto-generate one
   if (!data.couponCode || data.couponCode.trim() === '') {
     let unique = false;
     let code;
 
-    // Try generating a unique one (avoid duplicates)
     while (!unique) {
       code = generateCouponCode();
       const exists = await Coupon.findOne({ couponCode: code });
@@ -31,10 +30,6 @@ const createCoupon = async (data) => {
   const coupon = await Coupon.create(data);
   return coupon;
 };
-
-// const getAllCoupons = async () => {
-//   return await Coupon.find().populate('userType', 'user_details.name email');
-// };
 
 const getAllCoupons = async () => {
   return await Coupon.find().populate({
@@ -49,7 +44,10 @@ const getCouponById = async (id) => {
 
 const updateCoupon = async (id, data) => {
   if (data.couponCode) {
-    const exists = await Coupon.findOne({ couponCode: data.couponCode.trim() });
+    const exists = await Coupon.findOne({
+      couponCode: data.couponCode.trim(),
+      _id: { $ne: id } // Exclude current coupon
+    });
     if (exists) {
       throw new Error(`Coupon code "${data.couponCode}" already exists`);
     }
@@ -59,6 +57,31 @@ const updateCoupon = async (id, data) => {
 
 const deleteCoupon = async (id) => {
   return await Coupon.findByIdAndDelete(id);
+};
+
+// 🆕 NEW HELPER: Check if this is user's first order
+const isUserFirstOrder = async (userId) => {
+  // You need to import your Order model
+  const Order = require('../models/order.model'); // Adjust path as needed
+
+  const orderCount = await Order.countDocuments({
+    userId: userId,
+    status: { $in: ['completed', 'delivered', 'confirmed'] } // Adjust statuses based on your system
+  });
+
+  return orderCount === 0;
+};
+
+// 🆕 NEW HELPER: Get user's coupon usage count
+const getUserCouponUsageCount = async (couponId, userId) => {
+  const coupon = await Coupon.findById(couponId);
+  if (!coupon) return 0;
+
+  const userUsages = coupon.usageLog.filter(
+    log => log.userId.toString() === userId.toString()
+  );
+
+  return userUsages.length;
 };
 
 const applyCoupon = async ({ couponCode, userId, orderQuantity, cartValue, level }) => {
@@ -90,21 +113,40 @@ const applyCoupon = async ({ couponCode, userId, orderQuantity, cartValue, level
     throw new Error('This coupon has reached its maximum usage limit.');
   }
 
+  // 🆕 NEW VALIDATION: Check if coupon is for first order only
+  if (coupon.firstOrderOnly) {
+    const isFirstOrder = await isUserFirstOrder(userId);
+    if (!isFirstOrder) {
+      throw new Error('This coupon is only valid for first-time orders');
+    }
+  }
+
+  // 🆕 NEW VALIDATION: Check per-user usage limit
+  const userUsageCount = await getUserCouponUsageCount(coupon._id, userId);
+  if (userUsageCount >= coupon.maxUsagePerUser) {
+    throw new Error(`You have reached the maximum usage limit (${coupon.maxUsagePerUser}) for this coupon`);
+  }
+
   if (coupon.type === 'unique' && (!userId || coupon.userType._id.toString() !== userId)) {
     throw new Error('This coupon is only valid for a specific user');
   }
 
   const discount = (cartValue * coupon.maxDiscountValue) / 100;
 
-  // Increment usage count
+  // 🆕 Update usage log and count
   // coupon.usageCount += 1;
   await coupon.save();
 
-  return { couponId: coupon._id, couponCode: coupon.couponCode, discount, percentage: `${coupon.maxDiscountValue}%` };
+  return {
+    couponId: coupon._id,
+    couponCode: coupon.couponCode,
+    discount,
+    percentage: `${coupon.maxDiscountValue}%`,
+    remainingUsageForUser: coupon.maxUsagePerUser - (userUsageCount + 1)
+  };
 };
 
 const getCouponsForUser = async (userId) => {
-  // ✅ Check if user exists
   const user = await User.findById(userId);
   if (!user) {
     throw new Error('User not found');
@@ -112,16 +154,43 @@ const getCouponsForUser = async (userId) => {
 
   const now = new Date();
 
-  // 🏷️ Generic coupons: available to everyone
-  const genericCoupons = await Coupon.find({
+  // Check if user is a first-time customer
+  const isFirstOrder = await isUserFirstOrder(userId);
+
+  // Generic coupons
+  const genericQuery = {
     type: 'generic',
     isActive: true,
     startDate: { $lte: now },
     expiryDate: { $gte: now },
-  });
-  // console.log('genericCoupons ::>', genericCoupons);
+  };
 
-  // 🧍 Unique coupons: only for this user
+  // If not first order, exclude first-order-only coupons
+  if (!isFirstOrder) {
+    genericQuery.firstOrderOnly = false;
+  }
+
+  const genericCoupons = await Coupon.find(genericQuery);
+
+  // Filter out coupons where user has reached maxUsagePerUser
+  const availableGenericCoupons = [];
+  for (const coupon of genericCoupons) {
+    const userUsageCount = await getUserCouponUsageCount(coupon._id, userId);
+
+    // Check if coupon is for first order only
+    if (coupon.firstOrderOnly) {
+      const hasOrders = await Order.exists({ userId });
+      if (hasOrders) {
+        continue;
+      }
+    }
+
+    if (userUsageCount < coupon.maxUsagePerUser) {
+      availableGenericCoupons.push(coupon);
+    }
+  }
+
+  // Unique coupons
   const uniqueCoupons = await Coupon.find({
     userType: userId,
     type: 'unique',
@@ -129,11 +198,23 @@ const getCouponsForUser = async (userId) => {
     startDate: { $lte: now },
     expiryDate: { $gte: now },
   });
-  // console.log('uniqueCoupons ::>', uniqueCoupons);
 
-  return [...genericCoupons, ...uniqueCoupons];
+  const availableUniqueCoupons = [];
+  for (const coupon of uniqueCoupons) {
+    const userUsageCount = await getUserCouponUsageCount(coupon._id, userId);
+    // Check if coupon is for first order only
+    if (coupon.firstOrderOnly) {
+      const hasOrders = await Order.exists({ userId });
+      if (hasOrders) {
+        continue;
+      }
+    }
+    if (userUsageCount < coupon.maxUsagePerUser) {
+      availableUniqueCoupons.push(coupon);
+    }
+  }
+  return [...availableGenericCoupons, ...availableUniqueCoupons];
 };
-
 
 module.exports = {
   createCoupon,

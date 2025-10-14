@@ -53,10 +53,26 @@ const deleteCoupon = async (req, res) => {
   }
 };
 
+// const applyCoupon = async (req, res) => {
+//   try {
+//     const { couponCode, userId, orderQuantity, cartValue, level } = req.body;
+//     const result = await couponService.applyCoupon({ couponCode, userId, orderQuantity, cartValue, level });
+//     res.json({ success: true, data: result });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
 const applyCoupon = async (req, res) => {
   try {
     const { couponCode, userId, orderQuantity, cartValue, level } = req.body;
-    const result = await couponService.applyCoupon({ couponCode, userId, orderQuantity, cartValue, level });
+    const result = await couponService.applyCoupon({
+      couponCode,
+      userId,
+      orderQuantity,
+      cartValue,
+      level,
+    });
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -66,13 +82,23 @@ const applyCoupon = async (req, res) => {
 const getUserCoupons = async (req, res) => {
   try {
     const { userId } = req.body; // or req.query if GET request
-    if (!userId) return res.status(400).json({ success: false, message: 'User ID is required' });
 
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
     const coupons = await couponService.getCouponsForUser(userId);
-
-    res.json({ success: true, data: coupons });
+    res.json({
+      success: true,
+      data: coupons
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 
