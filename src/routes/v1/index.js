@@ -13,6 +13,8 @@ const addressRoute = require('./address.routes');
 const orderRoute = require('./order.routes');
 const reviewRoute = require('./review.routes');
 const couponRoute = require('./coupon.route');
+const partnershipRequestRoute = require('./partnershipRequest.routes');
+const bulkOrderRoute = require('./bulkOrder.routes');
 const router = express.Router();
 
 const defaultRoutes = [
@@ -63,6 +65,14 @@ const defaultRoutes = [
   {
     path: '/coupons',
     route: couponRoute,
+  },
+  {
+    path: '/partnership-requests',
+    route: partnershipRequestRoute,
+  },
+  {
+    path: '/bulk-orders',
+    route: bulkOrderRoute,
   }
 ];
 

@@ -307,9 +307,95 @@ const sendOrderStatusUpdateEmailForSeller = async (order, newStatus, buyerEmail,
   }
 };
 
+/* ---------- Partnership Request Email Functions ---------- */
+const buildPartnershipRequestHtml = (partnershipRequest) => {
+  return wrapMail(`
+    <h2 style="text-align:center;">🤝 New Partnership Request</h2>
+    <p>A new partnership request has been submitted through the website.</p>
+
+    <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;">
+      <h3 style="margin-top:0;color:#257112;">Request Details</h3>
+      <p><strong>Full Name:</strong> ${partnershipRequest.fullName || ''}</p>
+      <p><strong>Email Address:</strong> ${partnershipRequest.emailAddress || ''}</p>
+      <p><strong>Phone Number:</strong> ${partnershipRequest.phoneNumber || ''}</p>
+      <p><strong>Submitted On:</strong> ${formatDate(partnershipRequest.createdAt)}</p>
+      ${partnershipRequest.additionalInformation ? `
+        <p><strong>Additional Information:</strong></p>
+        <div style="background:#e8f5e8;padding:12px;border-radius:6px;border-left:4px solid #257112;">
+          <p style="margin:0;white-space:pre-wrap;">${partnershipRequest.additionalInformation}</p>
+        </div>
+      ` : ''}
+    </div>
+
+    <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:20px;">
+      This is an automated notification from <strong>Aavkar Mukhwas</strong>.<br>
+      © ${new Date().getFullYear()} Aavkar Mukhwas. All rights reserved.
+    </p>
+  `);
+};
+
+const sendPartnershipRequestEmailForSeller = async (partnershipRequest) => {
+  try {
+    await sendMail({
+      to: SELLER_RECIPIENTS.join(','),
+      subject: `New Partnership Request - ${  partnershipRequest.fullName}`,
+      text: `New partnership request from ${partnershipRequest.fullName} (${partnershipRequest.emailAddress})`,
+      html: buildPartnershipRequestHtml(partnershipRequest),
+    });
+  } catch (err) {
+    logger.error('Failed to send partnership request email to seller(s)', err);
+  }
+};
+
+/* ---------- Bulk Order Email Functions ---------- */
+const buildBulkOrderHtml = (bulkOrder) => {
+  const productList = bulkOrder.products?.map(product =>
+    `<li><strong>${product.name}</strong> - ${product.description || 'No description'}</li>`
+  ).join('') || '<li>No products specified</li>';
+
+  return wrapMail(`
+    <h2 style="text-align:center;">📦 New Bulk Order Request</h2>
+    <p>A new bulk order has been submitted through the website.</p>
+
+    <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;">
+      <h3 style="margin-top:0;color:#257112;">Order Details</h3>
+      <p><strong>Full Name:</strong> ${bulkOrder.fullName || ''}</p>
+      <p><strong>Email Address:</strong> ${bulkOrder.emailAddress || ''}</p>
+      <p><strong>Phone Number:</strong> ${bulkOrder.phoneNumber || ''}</p>
+      <p><strong>Delivery Address:</strong> ${bulkOrder.deliveryAddress || ''}</p>
+      <p><strong>Submitted On:</strong> ${formatDate(bulkOrder.createdAt)}</p>
+
+      <h4 style="color:#257112;margin-top:20px;">Selected Products:</h4>
+      <ul style="background:#e8f5e8;padding:12px;border-radius:6px;border-left:4px solid #257112;">
+        ${productList}
+      </ul>
+    </div>
+
+    <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:20px;">
+      This is an automated notification from <strong>Aavkar Mukhwas</strong>.<br>
+      © ${new Date().getFullYear()} Aavkar Mukhwas. All rights reserved.
+    </p>
+  `);
+};
+
+const sendBulkOrderEmailForSeller = async (bulkOrder) => {
+  try {
+    await sendMail({
+      to: SELLER_RECIPIENTS.join(','),
+      subject: `New Bulk Order Request - ${bulkOrder.fullName}`,
+      text: `New bulk order from ${bulkOrder.fullName} (${bulkOrder.emailAddress}) for ${bulkOrder.products?.length || 0} products`,
+      html: buildBulkOrderHtml(bulkOrder),
+    });
+  } catch (err) {
+    logger.error('Failed to send bulk order email to seller(s)', err);
+  }
+};
+
 module.exports = {
   sendOrderPlacedEmailForBuyer,
   sendOrderPlacedEmailForSeller,
   sendOrderStatusUpdateEmailForBuyer,
   sendOrderStatusUpdateEmailForSeller,
+  sendPartnershipRequestEmailForSeller,
+  sendBulkOrderEmailForSeller,
 };
