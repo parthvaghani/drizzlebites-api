@@ -31,6 +31,7 @@ const create = async (req, res) => {
     }
 
     return res.status(201).json({
+      success: true,
       message: 'Bulk order submitted successfully',
       data: doc
     });
