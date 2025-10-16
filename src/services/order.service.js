@@ -2,7 +2,7 @@ const Order = require('../models/order.model');
 const Address = require('../models/address.model');
 const Cart = require('../models/cart.model');
 const User = require('../models/user.model');
-const { emailService } = require('./index');
+const { emailService, productService } = require('./index');
 const mongoose = require('mongoose');
 
 /**
@@ -110,7 +110,132 @@ const getAllOrders = async (query = {}) => {
   }
 };
 
-const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) => {
+// ignore cart sync
+// const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) => {
+//   const address = await Address.findOne({ _id: addressId, userId });
+//   if (!address) {
+//     const error = new Error('Address not found');
+//     error.statusCode = 404;
+//     throw error;
+//   }
+
+//   if (!cartItems || cartItems.length === 0) {
+//     const error = new Error('Cart is empty');
+//     error.statusCode = 400;
+//     throw error;
+//   }
+
+//   // Build productsDetails array using cart's weightVariant and weight, and product's variants for price/discount
+//   // First check all products' categories have pricingEnabled true
+//   const categoryIds = cartItems
+//     .map((item) => item.productId && item.productId.category)
+//     .filter(Boolean);
+
+//   const uniqueCategoryIds = [...new Set(categoryIds.map(id => id.toString()))];
+//   const categories = await require('../models/productCategory.model').find({
+//     _id: { $in: uniqueCategoryIds }
+//   });
+
+//   const nonPricedCategory = categories.find((cat) => cat.pricingEnabled === false);
+//   if (nonPricedCategory) {
+//     const error = new Error(`Order cannot be placed for category "${nonPricedCategory.name}" as pricing is disabled.`);
+//     error.statusCode = 400;
+//     throw error;
+//   }
+
+//   // Build productsDetails as before
+//   const productsDetails = cartItems.map((item) => {
+//     const product = item.productId;
+//     const weightVariant = item.weightVariant; // 'gm' or 'kg' from cart
+//     const weight = item.weight; // e.g. '200' or '1'
+//     let pricePerUnit = 0;
+//     let discount = 0;
+//     if (product && product.variants && product.variants[weightVariant] && Array.isArray(product.variants[weightVariant])) {
+//       const foundVariant = product.variants[weightVariant].find(
+//         (v) => v && v.weight && v.weight.toString() === weight.toString(),
+//       );
+//       if (foundVariant) {
+//         pricePerUnit = typeof foundVariant.price === 'number' ? foundVariant.price : 0;
+//         discount = typeof foundVariant.discount === 'number' ? foundVariant.discount : 0;
+//       }
+//     }
+
+//     return {
+//       productId: product._id,
+//       weightVariant: weightVariant,
+//       weight: weight,
+//       pricePerUnit,
+//       discount,
+//       totalUnit: item.totalProduct,
+//     };
+//   });
+
+//   const user = await User.findById(userId).select('phoneNumber');
+//   const phoneNumber = user && user.phoneNumber ? user.phoneNumber : '';
+//   const orderDoc = await Order.create({
+//     userId,
+//     address: {
+//       addressLine1: address.addressLine1,
+//       addressLine2: address.addressLine2,
+//       city: address.city,
+//       state: address.state,
+//       zip: address.zip,
+//       country: address.country || 'IND',
+//     },
+//     productsDetails,
+//     phoneNumber,
+//     applyCoupon: {
+//       couponId: ReqBody.couponId,
+//       discountAmount: ReqBody.discountAmount,
+//       discountPercentage: ReqBody.discountPercentage,
+//     },
+//     statusHistory: [
+//       { status: 'placed', updatedBy: 'user', note: 'Order placed' }
+//     ],
+//   });
+
+//   // Increment coupon usage count AND log usage if coupon was applied
+//   if (ReqBody.couponId) {
+//     await Coupon.updateOne(
+//       { _id: ReqBody.couponId },
+//       {
+//         $inc: { usageCount: 1 },
+//         $push: {
+//           usageLog: {
+//             userId: userId,
+//             usedAt: new Date(),
+//             orderId: ReqBody.orderId || null,
+//           }
+//         }
+//       }
+//     );
+//   }
+
+//   await Cart.updateMany({ userId, isOrdered: false }, { $set: { isOrdered: true } });
+
+//   try {
+//     // Populate for email templates (product names)
+//     const populatedOrder = await Order.findById(orderDoc._id)
+//       .populate({ path: 'productsDetails.productId', select: 'name' })
+//       .lean();
+
+//     // Fetch buyer details
+//     const buyer = await User.findById(userId).select('email user_details.name').lean();
+//     const buyerEmail = buyer && buyer.email ? buyer.email : null;
+//     const buyerName = buyer && buyer.user_details && buyer.user_details.name ? buyer.user_details.name : '';
+
+//     // Send emails in parallel (non-blocking)
+//     await Promise.allSettled([
+//       emailService.sendOrderPlacedEmailForBuyer(buyerEmail, populatedOrder, buyerName, ReqBody.discountAmount),
+//       emailService.sendOrderPlacedEmailForSeller(buyerEmail, populatedOrder, buyerName, ReqBody.discountAmount),
+//     ]);
+//   } catch (error) {
+//     return error;
+//   }
+//   return { orderDoc, ReqBody };
+// };
+
+const createOrderFromCart = async ({userId, addressId, ReqBody }) => {
   const address = await Address.findOne({ _id: addressId, userId });
   if (!address) {
     const error = new Error('Address not found');
@@ -118,39 +243,16 @@ const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) =>
     throw error;
   }
 
-  if (!cartItems || cartItems.length === 0) {
-    const error = new Error('Cart is empty');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // Build productsDetails array using cart's weightVariant and weight, and product's variants for price/discount
-  // First check all products' categories have pricingEnabled true
-  const categoryIds = cartItems
-    .map((item) => item.productId && item.productId.category)
-    .filter(Boolean);
-
-  const uniqueCategoryIds = [...new Set(categoryIds.map(id => id.toString()))];
-  const categories = await require('../models/productCategory.model').find({
-    _id: { $in: uniqueCategoryIds }
-  });
-
-  const nonPricedCategory = categories.find((cat) => cat.pricingEnabled === false);
-  if (nonPricedCategory) {
-    const error = new Error(`Order cannot be placed for category "${nonPricedCategory.name}" as pricing is disabled.`);
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // Build productsDetails as before
-  const productsDetails = cartItems.map((item) => {
-    const product = item.productId;
+  const productsDetails = await Promise.all(ReqBody?.cart?.map(async (item) => {
     const weightVariant = item.weightVariant; // 'gm' or 'kg' from cart
     const weight = item.weight; // e.g. '200' or '1'
     let pricePerUnit = 0;
     let discount = 0;
-    if (product && product.variants && product.variants[weightVariant] && Array.isArray(product.variants[weightVariant])) {
-      const foundVariant = product.variants[weightVariant].find(
+    const findProdcut = await productService.getProductById(item.productId);
+    // Remove or replace console.log for lint compliance
+    // console.log('findProdcut', findProdcut);
+    if (findProdcut.variants && findProdcut.variants[weightVariant] && Array.isArray(findProdcut.variants[weightVariant])) {
+      const foundVariant = findProdcut.variants[weightVariant].find(
         (v) => v && v.weight && v.weight.toString() === weight.toString(),
       );
       if (foundVariant) {
@@ -160,14 +262,14 @@ const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) =>
     }
 
     return {
-      productId: product._id,
+      productId: item.productId,
       weightVariant: weightVariant,
       weight: weight,
       pricePerUnit,
       discount,
       totalUnit: item.totalProduct,
     };
-  });
+  }));
 
   const user = await User.findById(userId).select('phoneNumber');
   const phoneNumber = user && user.phoneNumber ? user.phoneNumber : '';
@@ -193,7 +295,7 @@ const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) =>
     ],
   });
 
-  // Increment coupon usage count AND log usage if coupon was applied
+  // // Increment coupon usage count AND log usage if coupon was applied
   if (ReqBody.couponId) {
     await Coupon.updateOne(
       { _id: ReqBody.couponId },
@@ -211,7 +313,6 @@ const createOrderFromCart = async ({ cartItems, userId, addressId, ReqBody }) =>
   }
 
   await Cart.updateMany({ userId, isOrdered: false }, { $set: { isOrdered: true } });
-
   try {
     // Populate for email templates (product names)
     const populatedOrder = await Order.findById(orderDoc._id)

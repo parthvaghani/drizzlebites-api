@@ -10,13 +10,22 @@ const addToCart = {
   }),
 };
 
+// ignore cart sync
+// const updateCart = {
+//   body: Joi.object().keys({
+//     action: Joi.string().valid('increment', 'decrement', 'weight').required(),
+//     cartId: Joi.string().custom(objectId).required(),
+//     weight: Joi.string().optional().allow(''), // allows empty string
+//     weightVariant: Joi.string().valid('gm', 'kg').optional(),
+//   }),
+// };
 const updateCart = {
-  body: Joi.object().keys({
-    action: Joi.string().valid('increment', 'decrement', 'weight').required(),
-    cartId: Joi.string().custom(objectId).required(),
+  body: Joi.array().items(Joi.object().keys({
+    productId: Joi.string().custom(objectId).required(),
+    totalProduct: Joi.number().required(),
     weight: Joi.string().optional().allow(''), // allows empty string
     weightVariant: Joi.string().valid('gm', 'kg').optional(),
-  }),
+  })).optional(),
 };
 
 const deleteCart = {

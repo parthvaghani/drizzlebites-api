@@ -44,6 +44,36 @@ const deleteCartById = async (cartId, userId) => {
   return await cartModel.findOneAndDelete({ _id: cartId, userId });
 };
 
+// payload is expected to be an array of cart items, plus userId at top level
+// Example payload:
+// {
+//   userId: "123...",
+//   items: [
+//     { productId, totalProduct, weight, weightVariant }, ...
+//   ]
+// }
+
+const deleteUserAllCartItems = async (userId) => {
+  return await cartModel.deleteMany({ userId, isOrdered: false });
+};
+
+const addItemsToCart = async (userId, insertData) => {
+
+  await deleteUserAllCartItems(userId);
+
+  // Map cart items, ensure each item includes userId
+  const itemsToInsert = (insertData || []).map(item => ({
+    ...item,
+    userId,
+    isOrdered: false, // keep it consistently false for new cart items
+  }));
+
+  // Insert the provided items in bulk
+  const newCartItems = await cartModel.insertMany(itemsToInsert);
+
+  return newCartItems;
+};
+
 module.exports = {
   getUserCart,
   addToCart,
@@ -51,4 +81,6 @@ module.exports = {
   updateCart,
   getCartById,
   deleteCartById,
+  deleteUserAllCartItems,
+  addItemsToCart
 };

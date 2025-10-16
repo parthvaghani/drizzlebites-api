@@ -1,5 +1,6 @@
 const catchAsync = require('../utils/catchAsync');
 const service = require('../services/cart.service');
+const { productService } = require('../services');
 
 // Get all cart items for user
 const getUserCartItems = catchAsync(async (req, res) => {
@@ -92,79 +93,120 @@ const addToCart = catchAsync(async (req, res) => {
 });
 
 // Update cart: handles weight, increment, decrement
+// ignore cart sync
+// const updateCart = catchAsync(async (req, res) => {
+//   const user = req.user;
+//   const { cartId, action, weight, weightVariant } = req.body;
+
+//   const cartItem = await service.getCartById(cartId, user?._id);
+//   if (!cartItem) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Cart item not found',
+//     });
+//   }
+
+//   let updatedData;
+//   let message;
+
+//   switch (action) {
+//     case 'weight': {
+//       if (!weightVariant) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Variant not found.',
+//         });
+//       }
+
+//       updatedData = await service.updateCart(cartItem._id, {
+//         weight: weight,
+//         weightVariant: weightVariant,
+//       });
+
+//       message = 'Product variant updated successfully';
+//       break;
+//     }
+
+//     case 'increment': {
+//       const newQty = (cartItem.totalProduct || 0) + 1;
+//       updatedData = await service.updateCart(cartItem._id, { totalProduct: newQty });
+//       message = 'Product quantity increased successfully';
+//       break;
+//     }
+
+//     case 'decrement': {
+//       const currentQty = cartItem.totalProduct || 1;
+//       if (currentQty <= 1) {
+//         updatedData = await service.deleteCartById(cartItem._id, user._id);
+//         message = 'Product removed successfully';
+//       } else {
+//         updatedData = await service.updateCart(cartItem._id, { totalProduct: currentQty - 1 });
+//         message = 'Product quantity decreased successfully';
+//       }
+//       break;
+//     }
+
+//     default:
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid action for updating cart',
+//       });
+//   }
+
+//   if (!updatedData) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Something went wrong while updating cart',
+//     });
+//   }
+
+//   return res.status(200).json({
+//     success: true,
+//     message,
+//     data: updatedData, // optional: return updated item
+//   });
+// });
+
 const updateCart = catchAsync(async (req, res) => {
   const user = req.user;
-  const { cartId, action, weight, weightVariant } = req.body;
-
-  const cartItem = await service.getCartById(cartId, user?._id);
-  if (!cartItem) {
-    return res.status(400).json({
-      success: false,
-      message: 'Cart item not found',
-    });
-  }
-
-  let updatedData;
-  let message;
-
-  switch (action) {
-    case 'weight': {
-      if (!weightVariant) {
-        return res.status(400).json({
-          success: false,
-          message: 'Variant not found.',
-        });
-      }
-
-      updatedData = await service.updateCart(cartItem._id, {
-        weight: weight,
-        weightVariant: weightVariant,
-      });
-
-      message = 'Product variant updated successfully';
-      break;
-    }
-
-    case 'increment': {
-      const newQty = (cartItem.totalProduct || 0) + 1;
-      updatedData = await service.updateCart(cartItem._id, { totalProduct: newQty });
-      message = 'Product quantity increased successfully';
-      break;
-    }
-
-    case 'decrement': {
-      const currentQty = cartItem.totalProduct || 1;
-      if (currentQty <= 1) {
-        updatedData = await service.deleteCartById(cartItem._id, user._id);
-        message = 'Product removed successfully';
-      } else {
-        updatedData = await service.updateCart(cartItem._id, { totalProduct: currentQty - 1 });
-        message = 'Product quantity decreased successfully';
-      }
-      break;
-    }
-
-    default:
+  if (req.body.length === 0) {
+    const deleteResult = await service.deleteUserAllCartItems(user?._id);
+    if (deleteResult.deletedCount === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid action for updating cart',
+        message: 'Something Went Wrong In Delete All Cart Items',
       });
-  }
-
-  if (!updatedData) {
-    return res.status(400).json({
-      success: false,
-      message: 'Something went wrong while updating cart',
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Cart items deleted successfully',
     });
   }
 
+  req.body.map(async (item) => {
+    const findProduct = await productService.getProductById(item?.productId);
+    if (!findProduct) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+  });
+
+  const createCart = await service.addItemsToCart(user?._id, req.body);
+  if (createCart.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Something Went Wrong In Update Cart',
+    });
+  }
   return res.status(200).json({
     success: true,
-    message,
-    data: updatedData, // optional: return updated item
+    message: 'Cart updated successfully',
   });
 });
 
+// ignore cart sync
 // Remove cart item
 const remove = catchAsync(async (req, res) => {
   const cartId = req.params.id;

@@ -3,7 +3,7 @@ const service = require('../services/order.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('http-status');
 const productCategoryModel = require('../models/productCategory.model');
-const cartModel = require('../models/cart.model');
+const { productService } = require('../services');
 
 const getAllOrders = catchAsync(async (req, res) => {
   const userRole = req.user && req.user.role;
@@ -14,16 +14,51 @@ const getAllOrders = catchAsync(async (req, res) => {
   return res.status(200).json({ success: true, message: 'Orders fetched successfully', data });
 });
 
+// ignore cart sync
+// const createOrder = catchAsync(async (req, res) => {
+//   const ReqBody = req.body;
+//   const userId = req.user && req.user._id;
+//   const phoneNumber = req.user && req.user.phoneNumber;
+//   const cartItems = await cartModel.find({ userId, isOrdered: false }).populate('productId');
+//   if (cartItems.length === 0) {
+//     return res.status(400).json({ success: false, message: 'Cart is empty' });
+//   }
+//   const categoryIds = cartItems
+//     .map((item) => item.productId && item.productId.category)
+//     .filter(Boolean);
+
+//   const uniqueCategoryIds = [...new Set(categoryIds.map(id => id.toString()))];
+//   const categories = await productCategoryModel.find({
+//     _id: { $in: uniqueCategoryIds }
+//   });
+
+//   const nonPricedCategory = categories.find((cat) => cat.pricingEnabled === false);
+//   if (nonPricedCategory) {
+//     return res.status(400).json({ success: false, message: `Order cannot be placed because ${cartItems.map(item => item.productId.name).join(', ')} is currently unavailable for now.`});
+//   }
+//   const created = await service.createOrderFromCart({ cartItems, userId, addressId: req.params.id, phoneNumber, ReqBody });
+//   return res.status(201).json({ success: true, message: 'Order placed successfully', data: created });
+// });
+
 const createOrder = catchAsync(async (req, res) => {
   const ReqBody = req.body;
   const userId = req.user && req.user._id;
   const phoneNumber = req.user && req.user.phoneNumber;
-  const cartItems = await cartModel.find({ userId, isOrdered: false }).populate('productId');
-  if (cartItems.length === 0) {
+
+  if (ReqBody.cart.length === 0) {
     return res.status(400).json({ success: false, message: 'Cart is empty' });
   }
-  const categoryIds = cartItems
-    .map((item) => item.productId && item.productId.category)
+  ReqBody.cart.map(async (item) => {
+    const findProduct = await productService.getProductById(item?.productId);
+    if (!findProduct) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+  });
+  const categoryIds = ReqBody.cart
+    .map((item) => item.productId && item.category)
     .filter(Boolean);
 
   const uniqueCategoryIds = [...new Set(categoryIds.map(id => id.toString()))];
@@ -33,9 +68,12 @@ const createOrder = catchAsync(async (req, res) => {
 
   const nonPricedCategory = categories.find((cat) => cat.pricingEnabled === false);
   if (nonPricedCategory) {
-    return res.status(400).json({ success: false, message: `Order cannot be placed because ${cartItems.map(item => item.productId.name).join(', ')} is currently unavailable for now.` });
+    return res.status(400).json({
+      success: false,
+      message: `Order cannot be placed because ${ReqBody.cart.map(item => item.productId && item.productId.name).filter(Boolean).join(', ')} is currently unavailable for now.`
+    });
   }
-  const created = await service.createOrderFromCart({ cartItems, userId, addressId: req.params.id, phoneNumber, ReqBody });
+  const created = await service.createOrderFromCart({ userId, addressId: req.params.id, phoneNumber, ReqBody });
   return res.status(201).json({ success: true, message: 'Order placed successfully', data: created });
 });
 
