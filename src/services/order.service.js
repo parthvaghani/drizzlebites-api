@@ -23,6 +23,7 @@ const getAllOrders = async (query = {}) => {
       productId,
       createdFrom,
       createdTo,
+      posOrder,
     } = query;
 
     const filter = {};
@@ -30,6 +31,7 @@ const getAllOrders = async (query = {}) => {
     if (userId) filter.userId = userId;
     if (phoneNumber) filter.phoneNumber = phoneNumber;
     if (productId) filter['productsDetails.productId'] = productId;
+    if (typeof posOrder !== 'undefined') filter.posOrder = posOrder === 'true' || posOrder === true;
     if (createdFrom || createdTo) {
       filter.createdAt = {};
       if (createdFrom) filter.createdAt.$gte = new Date(createdFrom);
@@ -617,17 +619,31 @@ const createPosOrder = async ({ userId, ReqBody }) => {
   const productsDetails = await Promise.all(ReqBody?.cart?.map(async (item) => {
     const weightVariant = item.weightVariant; // 'gm' or 'kg' from cart
     const weight = item.weight; // e.g. '200' or '1'
-    let pricePerUnit = 0;
-    let discount = 0;
-    const findProduct = await productService.getProductById(item.productId);
+    let pricePerUnit = item.price || 0; // Use price from frontend if available
+    let discount = item.discount || 0; // Use discount from frontend if available
 
-    if (findProduct.variants && findProduct.variants[weightVariant] && Array.isArray(findProduct.variants[weightVariant])) {
-      const foundVariant = findProduct.variants[weightVariant].find(
-        (v) => v && v.weight && v.weight.toString() === weight.toString(),
-      );
-      if (foundVariant) {
-        pricePerUnit = typeof foundVariant.price === 'number' ? foundVariant.price : 0;
-        discount = typeof foundVariant.discount === 'number' ? foundVariant.discount : 0;
+    // If price not provided in request, try to fetch from product database
+    if (!item.price && item.productId) {
+      try {
+        const findProduct = await productService.getProductById(item.productId);
+
+        if (findProduct && findProduct.variants && findProduct.variants[weightVariant] && Array.isArray(findProduct.variants[weightVariant])) {
+          const foundVariant = findProduct.variants[weightVariant].find(
+            (v) => v && v.weight && v.weight.toString() === weight.toString(),
+          );
+          if (foundVariant) {
+            pricePerUnit = typeof foundVariant.price === 'number' ? foundVariant.price : 0;
+            discount = typeof foundVariant.discount === 'number' ? foundVariant.discount : 0;
+          } else {
+            // Log warning if variant not found
+            console.warn(`Variant not found for product ${item.productId}, weight: ${weight}, variant: ${weightVariant}`);
+            console.warn('Available variants:', findProduct.variants[weightVariant]);
+          }
+        } else {
+          console.warn(`Product ${item.productId} has no variants or invalid structure`);
+        }
+      } catch (error) {
+        console.error(`Error fetching product ${item.productId}:`, error);
       }
     }
 
@@ -691,6 +707,13 @@ const createPosOrder = async ({ userId, ReqBody }) => {
     const buyer = await User.findById(userId).select('email user_details.name').lean();
     const buyerEmail = buyer && buyer.email ? buyer.email : null;
     const buyerName = buyer && buyer.user_details && buyer.user_details.name ? buyer.user_details.name : '';
+
+    // Generate invoice number and save to order
+    const invoiceNumber = await invoiceService.generateInvoiceNumber();
+    await Order.findByIdAndUpdate(orderDoc._id, { invoiceNumber });
+
+    // Update populatedOrder with invoice number
+    populatedOrder.invoiceNumber = invoiceNumber;
 
     // Send emails in parallel (non-blocking)
     await Promise.allSettled([

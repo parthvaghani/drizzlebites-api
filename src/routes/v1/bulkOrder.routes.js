@@ -7,6 +7,7 @@ const controller = require('../../controllers/bulkOrder.controller');
 router.post('/', validate(validation.createBulkOrder), controller.create);
 router.get('/', validate(validation.getBulkOrders), controller.getAll);
 router.get('/:id', validate(validation.getBulkOrderById), controller.getById);
+router.get('/:id/summary', validate(validation.getBulkOrderById), controller.downloadSummary);
 router.put('/:id', validate(validation.updateBulkOrder), controller.updateById);
 router.delete('/:id', validate(validation.deleteBulkOrder), controller.deleteById);
 

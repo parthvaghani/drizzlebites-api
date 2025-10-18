@@ -1,6 +1,7 @@
 const service = require('../services/bulkOrder.service');
 const emailService = require('../services/email.service');
 const logger = require('../config/logger');
+const bulkOrderInvoiceService = require('../services/bulkOrderInvoice.service');
 
 const create = async (req, res) => {
   try {
@@ -101,4 +102,23 @@ const deleteById = async (req, res) => {
   }
 };
 
-module.exports = { create, getAll, getById, updateById, deleteById };
+const downloadSummary = async (req, res) => {
+  try {
+    const { id } = req.params || {};
+    if (!id) return res.status(400).json({ message: 'id is required' });
+
+    const bulkOrder = await service.getBulkOrderById(id);
+    if (!bulkOrder) return res.status(404).json({ message: 'Bulk order not found' });
+
+    const pdfBuffer = await bulkOrderInvoiceService.generateBulkOrderSummaryPDF(bulkOrder);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=bulk-order-${id}.pdf`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    logger.error('Download summary error:', error);
+    return res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
+
+module.exports = { create, getAll, getById, updateById, deleteById, downloadSummary };

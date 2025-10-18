@@ -14,7 +14,8 @@ const orderSchema = new mongoose.Schema(
       },
       addressLine2: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
       },
       city: {
         type: String,

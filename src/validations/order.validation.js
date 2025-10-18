@@ -33,6 +33,7 @@ const getAllOrders = {
     productId: Joi.string().custom(objectId),
     createdFrom: Joi.date().iso(),
     createdTo: Joi.date().iso(),
+    posOrder: Joi.boolean(),
   }),
 };
 
@@ -94,6 +95,8 @@ const createPosOrder = {
           weightVariant: Joi.string().required(),
           weight: Joi.string().required(),
           totalProduct: Joi.number().required(),
+          price: Joi.number().optional(),
+          discount: Joi.number().optional(),
         }),
       )
       .min(1)
