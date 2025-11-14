@@ -3,6 +3,7 @@ const ProductCategory = require('../models/productCategory.model');
 const Product = require('../models/product.model');
 const data = require('./data.json');
 
+// eslint-disable-next-line no-undef
 const MONGO_URI = `${envVars.MONGODB_URL}drizzlebites-development`;
 
 const importData = async () => {

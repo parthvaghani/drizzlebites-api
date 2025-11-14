@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Testimonial = require('../models/testimonial.model');
 const data = require('./testimonials.json');
 
+// eslint-disable-next-line no-undef
 const MONGO_URI = `${envVars.MONGODB_URL}drizzlebites-development`;
 
 const importTestimonials = async () => {

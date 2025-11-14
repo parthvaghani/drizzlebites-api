@@ -422,6 +422,7 @@ const allowedTransitions = {
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('http-status');
 const { Coupon } = require('../models');
+const logger = require('../config/logger');
 
 const updateOrderStatus = async (id, newStatus, newPaymentStatus, note, trackingNumber, trackingLink, courierName, customMessage, role, requestUserId) => {
   // Only admin can update status (except cancel which has separate flow)
@@ -636,14 +637,14 @@ const createPosOrder = async ({ userId, ReqBody }) => {
             discount = typeof foundVariant.discount === 'number' ? foundVariant.discount : 0;
           } else {
             // Log warning if variant not found
-            console.warn(`Variant not found for product ${item.productId}, weight: ${weight}, variant: ${weightVariant}`);
-            console.warn('Available variants:', findProduct.variants[weightVariant]);
+            logger.warn(`Variant not found for product ${item.productId}, weight: ${weight}, variant: ${weightVariant}`);
+            logger.warn('Available variants:', findProduct.variants[weightVariant]);
           }
         } else {
-          console.warn(`Product ${item.productId} has no variants or invalid structure`);
+          logger.warn(`Product ${item.productId} has no variants or invalid structure`);
         }
       } catch (error) {
-        console.error(`Error fetching product ${item.productId}:`, error);
+        logger.error(`Error fetching product ${item.productId}:`, error);
       }
     }
 
