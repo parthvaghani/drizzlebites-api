@@ -2,14 +2,14 @@ name: Serverless Production Deployment
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Select branch to deploy'
-        required: true
-        type: choice
-        options:
-          - main
-          - develop
+  # push:
+  #   branches:
+  #     - main
+  #     - develop
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - develop
 
 jobs:
   code-check:
@@ -40,8 +40,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
